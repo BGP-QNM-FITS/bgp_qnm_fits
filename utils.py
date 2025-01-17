@@ -64,6 +64,7 @@ def get_tidy_list(qnm_list, spherical_modes, t0, data_times, data, Mf_0, chif_ma
     fisher_matrix = get_fisher_matrix(
         qnm_list,
         spherical_modes,
+        t0,
         data_times,
         Mf_0,
         chif_mag_0,
