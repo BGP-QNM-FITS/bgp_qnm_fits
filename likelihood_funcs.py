@@ -173,8 +173,9 @@ def get_fisher_matrix(
     Returns a len(param_list) x len(param_list) array.
     """
 
-    analysis_times = \
-        data_times[(data_times >= t0) & (data_times < t0 + T)] - t0
+    epsilon = 1e-9
+
+    analysis_times = data_times[(data_times >= t0 - epsilon) & (data_times < t0 + T)] - t0
 
     param_list = [qnm for qnm in qnm_list for _ in range(2)]
     if include_chif:
@@ -227,8 +228,9 @@ def get_b_vector(
     Returns a len(param_list) array.
     """
 
-    analysis_times = \
-        data_times[(data_times >= t0) & (data_times < t0 + T)] - t0
+    epsilon = 1e-9
+
+    analysis_times = data_times[(data_times >= t0 - epsilon) & (data_times < t0 + T)] - t0
 
     param_list = [qnm for qnm in qnm_list for _ in range(2)]
     if include_chif:
@@ -254,7 +256,7 @@ def get_b_vector(
     )
     data_array = np.array([np.array(data[mode]) for mode in spherical_modes])
 
-    data_mask = (data_times >= t0) & (data_times < t0 + T)
+    data_mask = (data_times >= t0 - epsilon) & (data_times < t0 + T)
     data_array_new = data_array[:, data_mask] - h_0
 
     for i in range(len(param_list)):

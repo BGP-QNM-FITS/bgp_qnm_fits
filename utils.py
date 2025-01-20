@@ -105,7 +105,7 @@ def get_fisher_and_b(sim, t0, T=100, l_max=8, n_max=7):
     )
 
     fisher_matrix = get_fisher_matrix(
-        qnm_list, spherical_modes, data_times, Mf_0, chif_mag_0, inv_cov=1, T=T
+        qnm_list, spherical_modes, t0, data_times, Mf_0, chif_mag_0, inv_cov=1, T=T
     )
 
     b_vec = get_b_vector(
