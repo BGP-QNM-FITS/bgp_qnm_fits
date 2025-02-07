@@ -1,6 +1,7 @@
 import numpy as np
 import qnmfits
 import matplotlib.pyplot as plt
+import scipy
 from likelihood_funcs import * 
 from scipy.interpolate import InterpolatedUnivariateSpline as spline
 from scipy.signal import correlate
@@ -73,7 +74,7 @@ def get_time_shift(sim1, sim2, dt=0.0001, range = 10):
 
 def log_evidence(K, f):
     _, logdet = np.linalg.slogdet(K)
-    return -0.5 * (np.dot(f, np.linalg.solve(K, f)) + logdet + len(f) * np.log(2 * np.pi)) 
+    return -0.5 * (np.dot(f, scipy.linalg.solve(K, f, assume_a = 'pos')) + logdet + len(f) * np.log(2 * np.pi)) 
 
 
 def get_new_params(param_dict, hyperparam_list, rule_dict):
@@ -83,19 +84,21 @@ def get_new_params(param_dict, hyperparam_list, rule_dict):
         rule = rule_dict[param]
         if rule == "multiply":
             new_params[param] = param_dict[param] * hyperparam_list[i]
-        elif rule == "add":
+        elif rule == "sum":
             new_params[param] = param_dict[param] + hyperparam_list[i]
+        else:
+            print("Rule not recognised for parameter", param)
             
     for param in param_dict.keys():
         if param not in new_params.keys():
             if param == "sigma_min":
-                new_params[param] = param_dict["sigma_max"] / 10
+                new_params[param] = new_params["sigma_max"] / 10
             else:
                 new_params[param] = param_dict[param]
 
     return new_params
 
-def get_total_log_evidence(hyperparam_list, param_dict_sim_lm, f_dict_sim_lm, rule_dict, analysis_times, sims = None):
+def get_total_log_evidence(hyperparam_list, param_dict_sim_lm, f_dict_sim_lm, rule_dict, analysis_times, sims = None, modes = None):
 
     if sims == None:
         sims = param_dict_sim_lm.keys() 
@@ -103,16 +106,19 @@ def get_total_log_evidence(hyperparam_list, param_dict_sim_lm, f_dict_sim_lm, ru
     total_log_evidence = 0
 
     for sim in sims:
-        for mode in param_dict_sim_lm[sim].keys():
+        if modes == None:
+            modes = param_dict_sim_lm[sim].keys()
+        for mode in modes:
             param_dict = param_dict_sim_lm[sim][mode]
             new_param_dict = get_new_params(param_dict, hyperparam_list, rule_dict)
             K = compute_kernel_matrix(analysis_times, new_param_dict)
             f = f_dict_sim_lm[sim][mode]
-            total_log_evidence += log_evidence(K, f)
+            total_log_evidence += log_evidence(K, f.real) 
+            total_log_evidence += log_evidence(K, f.imag)
 
     # Minus sign to minimse 
 
-    return -np.abs(total_log_evidence) #TODO Abs or real? 
+    return -total_log_evidence 
 
 def squared_exp_element(t1, t2, period):
     time_diff = np.abs(t1[:, None] - t2[None, :])
@@ -149,7 +155,7 @@ def kernel(analysis_times, **kwargs):
 def compute_kernel(analysis_times, spherical_modes, hyperparam_dict):
     kernel_dict = {} 
     for (ell, m) in spherical_modes:
-        kernel_dict[(ell, m)] = kernel(np.asarray(analysis_times), **hyperparam_dict[ell,m]) + np.eye(len(analysis_times)) * 1e-14
+        kernel_dict[(ell, m)] = kernel(np.asarray(analysis_times), **hyperparam_dict[ell,m])
 
 def compute_kernel_matrix(analysis_times, hyperparams):
     return kernel(np.asarray(analysis_times), **hyperparams) + np.eye(len(analysis_times)) * 1e-13

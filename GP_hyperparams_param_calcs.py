@@ -50,16 +50,37 @@ SPH_MODES_FULL = [
     (3, -2),
     (4, -4),
 ]
-SPH_MODES_NOSPIN_Q1 = [(2, 2), (3, 2), (4, 4)]
-SPH_MODES_NOSPIN = [(2, 2), (2, 1), (3, 3), (3, 2), (4, 4)]
-SPH_MODES_Q1 = [(2, 2), (3, 2), (4, 4), (2, -2), (3, -2), (4, -4)]
 
-SHARPNESS = 16
+SPH_MODES_NO_ODD = [
+        (2, 2),
+        (3, 2),
+        (4, 4),
+        (2, -2),
+        (3, -2),
+        (4, -4)
+]
 
-T0 = 0 
+SPH_MODES_NO_NEGATIVE = [
+        (2, 2),
+        (2, 1),
+        (3, 3),
+        (3, 2),
+        (4, 4),
+]
+
+SPH_MODES_NO_ODD_NO_NEGATIVE = [
+        (2, 2),
+        (3, 2),
+        (4, 4)
+]
+
+
+
+SMOOTHNESS = 16
+
+T0 = 0
 T = 50
-
-DT = 1 # Interpolation time step
+DT = 0.5  # Interpolation time step
 
 with open("residual_sim_dict.pkl", "rb") as f:
     residual_sim_dict = pickle.load(f)
@@ -73,23 +94,14 @@ for i, sim_id in enumerate(SIMNUMS):
 
     print(sim_id)
 
-    if sim_id == "0001":
-        spherical_modes = SPH_MODES_NOSPIN_Q1
-    elif (
-        sim_id == "0002"
-        or sim_id == "0003"
-        or sim_id == "0004"
-        or sim_id == "0005"
-        or sim_id == "0006"
-        or sim_id == "0007"
-    ):
-        spherical_modes = SPH_MODES_Q1
-    elif sim_id == "0008" or sim_id == "0009":
-        spherical_modes = SPH_MODES_FULL
-    elif sim_id == "0010":
-        spherical_modes = SPH_MODES_NOSPIN
-    elif sim_id == "0011" or sim_id == "0012" or sim_id == "0013":
-        spherical_modes = SPH_MODES_FULL
+    if sim_id == "0001" or sim_id == "0002" or sim_id == "0003" or sim_id == "0004":
+        spherical_modes = SPH_MODES_NO_ODD_NO_NEGATIVE.copy() 
+    elif sim_id == "0005" or sim_id == "0006" or sim_id == "0007" or sim_id == "0010" or sim_id == "0011" or sim_id == "0012":
+        spherical_modes = SPH_MODES_NO_NEGATIVE.copy()
+    elif sim_id == "0009":
+        spherical_modes = SPH_MODES_NO_ODD.copy() 
+    elif sim_id == "0008" or sim_id == "0013":
+        spherical_modes = SPH_MODES_FULL.copy()
 
     start_time = START_TIMES[i]
 
@@ -109,13 +121,18 @@ for i, sim_id in enumerate(SIMNUMS):
         f = R[analysis_mask]
         R_amplitude = np.max(np.abs(f))
 
-        omega = qnmfits.qnm.omega(ell, m, 0, 1, sim_main.chif_mag, sim_main.Mf)
+        if m < 0:
+            p = -1
+        else:
+            p = 1
+
+        omega = qnmfits.qnm.omega(ell, m, 0, p, sim_main.chif_mag, sim_main.Mf)
 
         param_dict = {
             "sigma_max": R_amplitude,
-            "sigma_min": R_amplitude / 10, # This is actually recomputed later anyway
-            "t_s": start_time, 
-            "sharpness": SHARPNESS,
+            "sigma_min": R_amplitude / 10,  # This is actually recomputed later anyway
+            "t_s": start_time,
+            "sharpness": SMOOTHNESS,
             "length_scale": -1 / omega.imag,
             "period": (2 * np.pi) / omega.real,
         }

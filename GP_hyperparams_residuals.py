@@ -31,13 +31,12 @@ for sim_id in simnums:
 
     #TODO shift sensitive to range, maybe because of cutting the waveform and doing fft (but it's not a huge effect; effects things on the order of 0.01) 
     time_shift = get_time_shift(sim_main, sim_lower, dt=0.0001, range=35) 
-    print(time_shift)
     sim_lower.zero_time = -time_shift
     sim_lower.time_shift()
 
     # Interpolate onto the same grids
 
-    DT = 1
+    DT = 0.5
 
     new_times = np.arange(sim_main.times[0], sim_main.times[-1], DT)
     sim_main_interp = sim_interpolator(sim_main, new_times)
