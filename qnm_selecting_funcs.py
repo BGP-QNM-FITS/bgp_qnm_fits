@@ -94,23 +94,19 @@ def get_qnm_timeseries(
     model. Returns a list of lists of QNMs at each timestep.
     """
 
-    param_list_init = [qnm for qnm in intital_qnm_list for _ in range(2)]
     qnm_list_timeseries = []
     qnm_list_new = intital_qnm_list.copy()
 
-    fisher_matrix_initial = get_fisher_matrix(
-        qnm_list_new, spherical_modes, data_times, Mf_0, chif_mag_0, inv_cov, T=T
-    )
-
     for t0 in t0_list:
         print(f"t0 = {t0}")
-        mask = np.array([qnm in qnm_list_new for qnm in param_list_init])
-        fisher_matrix_reduced = fisher_matrix_initial[mask][:, mask]
+        fisher_matrix = get_fisher_matrix(
+            qnm_list_new, spherical_modes, t0, data_times, Mf_0, chif_mag_0, inv_cov, T=T
+        )
         b_vec = get_b_vector(
             qnm_list_new, spherical_modes, t0, data_times, data, Mf_0, chif_mag_0, inv_cov, T=T
         )
         qnm_list_new = recursive_qnm_finder(
-            qnm_list_new, b_vec, fisher_matrix_reduced, threshold_sig=threshold_sig
+            qnm_list_new, b_vec, fisher_matrix, threshold_sig=threshold_sig
         )
         qnm_list_timeseries.append(qnm_list_new)
 
