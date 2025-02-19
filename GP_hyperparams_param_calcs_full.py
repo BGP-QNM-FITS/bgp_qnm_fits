@@ -38,43 +38,7 @@ START_TIMES = [
     6.0,
 ]
 
-SPH_MODES_FULL = [
-    (2, 2),
-    (2, 1),
-    (3, 3),
-    (3, 2),
-    (4, 4),
-    (2, -2),
-    (2, -1),
-    (3, -3),
-    (3, -2),
-    (4, -4),
-]
-
-SPH_MODES_NO_ODD = [
-        (2, 2),
-        (3, 2),
-        (4, 4),
-        (2, -2),
-        (3, -2),
-        (4, -4)
-]
-
-SPH_MODES_NO_NEGATIVE = [
-        (2, 2),
-        (2, 1),
-        (3, 3),
-        (3, 2),
-        (4, 4),
-]
-
-SPH_MODES_NO_ODD_NO_NEGATIVE = [
-        (2, 2),
-        (3, 2),
-        (4, 4)
-]
-
-SMOOTHNESS = 16 # 2 looks best
+SMOOTHNESS = 16
 
 T0 = 0
 T = 50
@@ -90,15 +54,6 @@ f_dict_sim_lm = {}
 
 for i, sim_id in enumerate(SIMNUMS):
 
-    if sim_id == "0001" or sim_id == "0002" or sim_id == "0003" or sim_id == "0004":
-        spherical_modes = SPH_MODES_NO_ODD_NO_NEGATIVE.copy() 
-    elif sim_id == "0005" or sim_id == "0006" or sim_id == "0007" or sim_id == "0010" or sim_id == "0011" or sim_id == "0012":
-        spherical_modes = SPH_MODES_NO_NEGATIVE.copy()
-    elif sim_id == "0009":
-        spherical_modes = SPH_MODES_NO_ODD.copy() 
-    elif sim_id == "0008" or sim_id == "0013":
-        spherical_modes = SPH_MODES_FULL.copy()
-
     start_time = START_TIMES[i]
 
     sim_main = CCE.SXS_CCE(sim_id, lev="Lev5", radius="R2")
@@ -109,7 +64,7 @@ for i, sim_id in enumerate(SIMNUMS):
     param_dict_lm = {}
     f_dict_lm = {}
 
-    for mode in spherical_modes:
+    for mode in sim_main.h.keys():
 
         ell, m = mode
 
@@ -142,8 +97,8 @@ for i, sim_id in enumerate(SIMNUMS):
     param_dict_sim_lm[sim_id] = param_dict_lm
     f_dict_sim_lm[sim_id] = f_dict_lm
 
-with open("param_dict_sim_lm.pkl", "wb") as f:
+with open("param_dict_sim_lm_full.pkl", "wb") as f:
     pickle.dump(param_dict_sim_lm, f)
 
-with open("f_dict_sim_lm.pkl", "wb") as f:
+with open("f_dict_sim_lm_full.pkl", "wb") as f:
     pickle.dump(f_dict_sim_lm, f)

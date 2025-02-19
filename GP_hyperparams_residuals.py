@@ -29,7 +29,7 @@ for sim_id in simnums:
 
     # Perform a time shift
 
-    #TODO shift sensitive to range, maybe because of cutting the waveform and doing fft (but it's not a huge effect; effects things on the order of 0.01) 
+    #TODO shift sensitive to range, maybe because of cutting the waveform and doing fft (but it's not a huge effect; on the order of 0.01) 
     time_shift = get_time_shift(sim_main, sim_lower, dt=0.0001, range=35) 
     sim_lower.zero_time = -time_shift
     sim_lower.time_shift()
