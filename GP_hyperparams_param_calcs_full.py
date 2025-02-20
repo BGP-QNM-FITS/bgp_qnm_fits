@@ -3,6 +3,7 @@ import qnmfits
 import CCE
 from likelihood_funcs import *
 from GP_funcs import *
+from utils import * 
 import pickle
 import pdb
 
@@ -59,7 +60,7 @@ for i, sim_id in enumerate(SIMNUMS):
     sim_main = CCE.SXS_CCE(sim_id, lev="Lev5", radius="R2")
     new_times = np.arange(sim_main.times[0], sim_main.times[-1], DT)
     sim_main = sim_interpolator(sim_main, new_times)
-    analysis_mask = (sim_main.times >= T0 - 1e-9) & (sim_main.times < T0 + T - 1e-9)
+    analysis_mask = (sim_main.times >= T0 - 1e-9) & (sim_main.times < T0 + T)
 
     param_dict_lm = {}
     f_dict_lm = {}

@@ -1,9 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import qnmfits
-import CCE
-from likelihood_funcs import *
-from GP_funcs import *
+import funcs.CCE
+from funcs.likelihood_funcs import *
+from funcs.GP_funcs import *
+from funcs.kernel_param_funcs import *
 from scipy.optimize import minimize
 from scipy.optimize import differential_evolution
 from scipy.optimize import basinhopping
@@ -57,10 +58,10 @@ hyperparam_rule_dict_c = {
     "a": "sum",
 }
 
-with open('param_dict_sim_lm.pkl', 'rb') as f:
+with open('param_dict_sim_lm_full.pkl', 'rb') as f:
     param_dict_sim_lm = pickle.load(f)
 
-with open('f_dict_sim_lm.pkl', 'rb') as f:
+with open('f_dict_sim_lm_full.pkl', 'rb') as f:
     f_dict_sim_lm = pickle.load(f)
 
 SIMNUMS = [
@@ -78,6 +79,35 @@ SIMNUMS = [
     "0012",
     "0013",
 ]
+
+SPH_MODES_FULL = [
+    (2, 2),
+    (2, 1),
+    (3, 3),
+    (3, 2),
+    (4, 4),
+    (2, -2),
+    (2, -1),
+    (3, -3),
+    (3, -2),
+    (4, -4),
+]
+
+SIM_TRAINING_MODE_RULES = {
+    "0001": "PE",
+    "0002": "PE",
+    "0003": "PE",
+    "0004": "PE",
+    "0005": "P",
+    "0006": "P",
+    "0007": "P",
+    "0008": "ALL",
+    "0009": "E",
+    "0010": "P",
+    "0011": "P",
+    "0012": "P",
+    "0013": "ALL"
+}
 
 initial_params_s = [1.] 
 bounds_s = [(SIGMA_MAX_LOWER, SIGMA_MAX_UPPER)]
@@ -98,13 +128,13 @@ bounds_c = [(SIGMA_MAX_LOWER, SIGMA_MAX_UPPER),
             (PERIOD_LOWER, PERIOD_UPPER), 
             (A_LOWER, A_UPPER)]
 
-args_s = (param_dict_sim_lm, f_dict_sim_lm, hyperparam_rule_dict_s, analysis_times, kernel_s)
-args = (param_dict_sim_lm, f_dict_sim_lm, hyperparam_rule_dict, analysis_times, kernel)
-args_c = (param_dict_sim_lm, f_dict_sim_lm, hyperparam_rule_dict_c, analysis_times, kernel_c)
+args_s = (param_dict_sim_lm, f_dict_sim_lm, hyperparam_rule_dict_s, analysis_times, kernel_s, SPH_MODES_FULL, SIM_TRAINING_MODE_RULES)
+args = (param_dict_sim_lm, f_dict_sim_lm, hyperparam_rule_dict, analysis_times, kernel_main, SPH_MODES_FULL, SIM_TRAINING_MODE_RULES)
+args_c = (param_dict_sim_lm, f_dict_sim_lm, hyperparam_rule_dict_c, analysis_times, kernel_c, SPH_MODES_FULL, SIM_TRAINING_MODE_RULES)
 
-#result = minimize(get_total_log_evidence, initial_params_s, args = args_s, method='Nelder-Mead', bounds=bounds_s)
+result = minimize(get_total_log_evidence, initial_params_s, args = args_s, method='Nelder-Mead', bounds=bounds_s)
 #result = minimize(get_total_log_evidence, initial_params, args = args, method='Nelder-Mead', bounds=bounds)
-result = minimize(get_total_log_evidence, initial_params_c, args = args_c, method='Nelder-Mead', bounds=bounds_c)
+#result = minimize(get_total_log_evidence, initial_params_c, args = args_c, method='Nelder-Mead', bounds=bounds_c)
 
 # Experimenting with other options 
 
@@ -117,4 +147,4 @@ result = minimize(get_total_log_evidence, initial_params_c, args = args_c, metho
 
 optimal_params = result.x
 
-print("Optimal parameters:", dict(zip(hyperparam_rule_dict_c.keys(), optimal_params)), "Log evidence:", result.fun)
+print("Optimal parameters:", dict(zip(hyperparam_rule_dict_s.keys(), optimal_params)), "Log evidence:", result.fun)

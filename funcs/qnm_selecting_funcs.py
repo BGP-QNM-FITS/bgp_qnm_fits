@@ -2,6 +2,67 @@
 
 import numpy as np
 from likelihood_funcs import *
+from GP_funcs import *
+from utils import *
+from kernel_param_funcs import *
+
+
+def marginalise(parameter_choice, parameters, mean_vector, fisher_matrix):
+    """This marginalises over the parameters in parameter_choice.
+
+    Inputs:
+
+    parameter_choice : list
+        The parameters to marginalise.
+    parameters : list
+        The full list of parameters (i.e. each QNM repeated for the real and imaginary cpt + mass and spin)
+    mean_vector : np.array
+        The mean vector of all parameters.
+    fisher_matrix : np.array
+        The Fisher matrix of all parameters.
+
+    Returns:
+    marginal_mean : np.array
+        The mean vector of the marginalised parameters.
+    marginal_fisher : np.array
+        The Fisher matrix of the marginalised parameters.
+    """
+
+    keep_indices = [i for i, p in enumerate(parameters) if p in parameter_choice]
+    marginalize_indices = [i for i in range(len(parameters)) if i not in keep_indices]
+    marginal_mean = mean_vector[keep_indices]
+    Q_11 = fisher_matrix[np.ix_(keep_indices, keep_indices)]
+    Q_12 = fisher_matrix[np.ix_(keep_indices, marginalize_indices)]
+    Q_22 = fisher_matrix[np.ix_(marginalize_indices, marginalize_indices)]
+    marginal_fisher = Q_11 - Q_12 @ np.linalg.solve(Q_22, Q_12.T)
+
+    return marginal_mean, marginal_fisher
+
+
+def get_significance(marginal_mean, marginal_covariance):
+    """This computes the significance of the marginalised parameters.
+
+    Inputs:
+
+    marginal_mean : np.array
+        The mean vector of the marginalised parameters.
+    marginal_covariance : np.array
+        The covariance matrix of the marginalised parameters.
+
+    Returns:
+    significance : float
+        The significance of the marginalised parameters.
+    """
+
+    # TODO: Fine tune b_a threshold for significance
+
+    L = cholesky(marginal_covariance)
+    b_a = -np.dot(np.linalg.inv(L), marginal_mean)
+
+    if np.dot(b_a, b_a) > 3:
+        return -np.exp(-0.5 * np.dot(b_a, b_a))
+    else:
+        return np.log(1 - np.exp(-0.5 * np.dot(b_a, b_a)))
 
 
 def get_significance_list(qnm_list, mean_vector, fisher_matrix):
@@ -27,7 +88,9 @@ def get_significance_list(qnm_list, mean_vector, fisher_matrix):
 
     sig_list = []
     for qnm in qnm_list:
-        marginal_mean, marginal_fisher = marginalise([qnm], param_list, mean_vector, fisher_matrix)
+        marginal_mean, marginal_fisher = marginalise(
+            [qnm], param_list, mean_vector, fisher_matrix
+        )
         marginal_covariance = np.linalg.inv(marginal_fisher)
         try:
             significance = get_significance(marginal_mean, marginal_covariance)
@@ -51,7 +114,9 @@ def find_worst_qnm(qnm_list, mean_vector, fisher_matrix):
     return worst_sig, worst_qnm
 
 
-def recursive_qnm_finder(qnm_list_initial, b_vec, fisher_matrix, threshold_sig=np.log(0.9)):
+def recursive_qnm_finder(
+    qnm_list_initial, b_vec, fisher_matrix, threshold_sig=np.log(0.9)
+):
     """This function recursively removes the QNM with the lowest significance until all QNMs have a
     significance above a threshold."""
 
@@ -73,6 +138,7 @@ def recursive_qnm_finder(qnm_list_initial, b_vec, fisher_matrix, threshold_sig=n
         if sig_val < threshold_sig:
             qnm_list_reduced.remove(worst_qnm)
             print(f"{worst_qnm} removed with significance {sig_val}")
+
     return qnm_list_reduced
 
 
@@ -100,10 +166,25 @@ def get_qnm_timeseries(
     for t0 in t0_list:
         print(f"t0 = {t0}")
         fisher_matrix = get_fisher_matrix(
-            qnm_list_new, spherical_modes, t0, data_times, Mf_0, chif_mag_0, inv_cov, T=T
+            qnm_list_new,
+            spherical_modes,
+            t0,
+            data_times,
+            Mf_0,
+            chif_mag_0,
+            inv_cov,
+            T=T,
         )
         b_vec = get_b_vector(
-            qnm_list_new, spherical_modes, t0, data_times, data, Mf_0, chif_mag_0, inv_cov, T=T
+            qnm_list_new,
+            spherical_modes,
+            t0,
+            data_times,
+            data,
+            Mf_0,
+            chif_mag_0,
+            inv_cov,
+            T=T,
         )
         qnm_list_new = recursive_qnm_finder(
             qnm_list_new, b_vec, fisher_matrix, threshold_sig=threshold_sig
@@ -111,4 +192,3 @@ def get_qnm_timeseries(
         qnm_list_timeseries.append(qnm_list_new)
 
     return qnm_list_timeseries
-
