@@ -30,7 +30,7 @@ def get_residuals(sim_main, sim_lower, t0, T, dt=None):
     # Mask the data around the region of interest for param estimation and training
 
     analysis_mask = (sim_main_interp.times >= t0 - 1e-9) & (
-        sim_main_interp.times < t0 + T
+        sim_main_interp.times < t0 + T - 1e-9
     )
 
     return {

@@ -356,6 +356,9 @@ def qnm_BGP_fit(
     best_fit = {
         "mean": mean_vector,
         "covariance": covariance_matrix_reg,
+        "fisher_matrix": fisher_matrix,
+        "b_vector": b_vector,
+        "noise_covariance": noise_covariance_matrix,
         "data": data_dict,
         "model_times": times,
         "t0": t0,

@@ -58,7 +58,7 @@ EPSILON = 1 / 10
 
 TRAINING_START_TIME = 0
 TRAINING_END_TIME = 50
-TIME_STEP = 0.5
+TIME_STEP = 0.1
 
 # These are the bounds of the minimisation for the kernel hyperparameters
 
@@ -152,6 +152,9 @@ print(
     "Log evidence:",
     le,
 )
+
+breakpoint() 
+
 print("Tuning parameters...")
 
 tuned_params_sim_lm = {}
