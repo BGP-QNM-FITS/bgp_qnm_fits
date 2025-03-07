@@ -70,6 +70,35 @@ def kernel_main(analysis_times, **kwargs):
         )[None, :]
     )
 
+def kernel_test_altsigma(analysis_times, **kwargs):
+    t1 = analysis_times
+    t2 = analysis_times
+    return (
+        kwargs["sigma_max"]**2 * squared_exp_element(t1, t2, kwargs["period"])
+        * new_func(
+            t1,
+            kwargs["length_scale"],
+            kwargs["t_s"],
+            kwargs["sigma_min"],
+            1,
+            kwargs["sharpness"],
+        )[:, None]
+        * new_func(
+            t2,
+            kwargs["length_scale"],
+            kwargs["t_s"],
+            kwargs["sigma_min"],
+            1,
+            kwargs["sharpness"],
+        )[None, :]
+    )
+
+def kernel_test_stationary(analysis_times, **kwargs):
+    t1 = analysis_times
+    t2 = analysis_times
+    return (
+        kwargs["sigma_max"] ** 2 * squared_exp_element(t1, t2, kwargs["period"])
+    )
 
 def kernel_c(analysis_times, **kwargs):
     t1 = analysis_times
@@ -101,7 +130,7 @@ def kernel_c(analysis_times, **kwargs):
 
 def compute_kernel_matrix(analysis_times, hyperparams, kernel):
     return (
-        kernel(np.asarray(analysis_times), **hyperparams)
+        kernel(np.asarray(analysis_times), **hyperparams) 
         + np.eye(len(analysis_times)) * 1e-13
     )
 
@@ -144,6 +173,7 @@ def get_GP_covariance_matrix(
         mode: compute_kernel_matrix(analysis_times, tuned_param_dict[mode], kernel)
         for mode in spherical_modes
     }
+
     return np.array(
         [np.linalg.inv(kernel_dict[mode]) for mode in spherical_modes],
         dtype=np.complex128,

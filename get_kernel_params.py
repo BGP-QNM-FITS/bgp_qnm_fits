@@ -56,9 +56,9 @@ EPSILON = 1 / 10
 
 # These determine the parameter and training range but do not have to match `analysis times' used later.
 
-TRAINING_START_TIME = 0
-TRAINING_END_TIME = 50
-TIME_STEP = 0.1
+TRAINING_START_TIME = -10
+TRAINING_END_TIME = 100
+TIME_STEP = 0.5
 
 # These are the bounds of the minimisation for the kernel hyperparameters
 
@@ -73,6 +73,7 @@ BOUNDS = [
     (LENGTH_SCALE_LOWER, LENGTH_SCALE_UPPER),
     (PERIOD_LOWER, PERIOD_UPPER),
 ]
+
 INITIAL_PARAMS = [1.0, 0.0, 1.0, 1.0]
 
 HYPERPARAM_RULE_DICT = {
@@ -128,6 +129,14 @@ for i, sim_id in enumerate(SIMNUMS):
     R_sim_lm[sim_id] = R_lm
     param_dict_sim_lm[sim_id] = param_dict_full
 
+with open("param_dict_sim_lm_full.pkl", "wb") as f:
+    pickle.dump(param_dict_sim_lm, f)
+
+with open("R_dict_sim_lm_full.pkl", "wb") as f:
+    pickle.dump(R_sim_lm, f)
+
+breakpoint() 
+
 print("Getting hyperparameters...")
 
 analysis_times = np.arange(
@@ -152,8 +161,6 @@ print(
     "Log evidence:",
     le,
 )
-
-breakpoint() 
 
 print("Tuning parameters...")
 

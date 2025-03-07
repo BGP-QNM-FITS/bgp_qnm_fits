@@ -84,14 +84,14 @@ def log_evidence(K, f):
 
 
 def get_new_params(param_dict, hyperparam_list, rule_dict):
-    new_params = {
-        param: (
-            param_dict[param] * hyperparam_list[i]
-            if rule == "multiply"
-            else param_dict[param] + hyperparam_list[i]
-        )
-        for i, (param, rule) in enumerate(rule_dict.items())
-    }
+    new_params = {}
+    for i, (param, rule) in enumerate(rule_dict.items()):
+        if rule == "multiply":
+            new_params[param] = param_dict[param] * hyperparam_list[i]
+        elif rule == "sum":
+            new_params[param] = param_dict[param] + hyperparam_list[i]
+        elif rule == "replace":
+            new_params[param] = hyperparam_list[i]
 
     new_params["sigma_min"] = (
         param_dict["sigma_min"]
@@ -163,6 +163,7 @@ def get_minimised_hyperparams(
         spherical_modes,
         mode_rules,
     )
+
     result = minimize(
         get_total_log_evidence,
         initial_params,

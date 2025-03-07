@@ -153,15 +153,31 @@ def precompute_dict(
 
 
 def get_element(array1, array2, analysis_times, covariance_matrix):
-    """This computes a single element of the Fisher matrix corresponding to dict1 and dict2.
+    """
+    This computes a single element of the Fisher matrix corresponding to dict1 and dict2.
 
     Returns a real scalar.
     """
 
-    return np.real(
-        np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
-        * (analysis_times[1] - analysis_times[0])
-    )
+    #return np.real(
+    #    np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
+    #    / (analysis_times[-1] - analysis_times[0]) 
+    #)
+
+    if np.allclose(covariance_matrix[0], np.diag(np.diagonal(covariance_matrix[0]))): # should really make this true for every mode
+        return np.real(
+            np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
+            * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
+        )
+    else:
+        return np.real(
+            np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
+        )
+ 
+    #return np.real(
+    #    np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
+    #    * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
+    #)
 
 
 def get_fisher_matrix(
@@ -346,16 +362,13 @@ def qnm_BGP_fit(
 
     mean_vector = np.linalg.solve(fisher_matrix, b_vector)
     covariance_matrix = np.linalg.inv(fisher_matrix)
-    covariance_matrix_reg = (
-        covariance_matrix + np.eye(covariance_matrix.shape[0]) * 1e-13
-    )
 
     labels = [str(mode) for mode in modes]
 
     # Store all useful information to a output dictionary
     best_fit = {
         "mean": mean_vector,
-        "covariance": covariance_matrix_reg,
+        "covariance": covariance_matrix,
         "fisher_matrix": fisher_matrix,
         "b_vector": b_vector,
         "noise_covariance": noise_covariance_matrix,
