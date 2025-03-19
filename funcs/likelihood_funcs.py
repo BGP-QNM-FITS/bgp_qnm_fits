@@ -164,20 +164,20 @@ def get_element(array1, array2, analysis_times, covariance_matrix):
     #    / (analysis_times[-1] - analysis_times[0]) 
     #)
 
-    if np.allclose(covariance_matrix[0], np.diag(np.diagonal(covariance_matrix[0]))): # should really make this true for every mode
-        return np.real(
-            np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
-            * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
-        )
-    else:
-        return np.real(
-            np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
-        )
+    #if np.allclose(covariance_matrix[0], np.diag(np.diagonal(covariance_matrix[0]))): # should really make this true for every mode
+    #    return np.real(
+    #        np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
+    #        * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
+    #    )
+    #else:
+    #    return np.real(
+    #        np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
+    #    )
  
-    #return np.real(
-    #    np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
-    #    * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
-    #)
+    return np.real(
+        np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
+        * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
+    )
 
 
 def get_fisher_matrix(
