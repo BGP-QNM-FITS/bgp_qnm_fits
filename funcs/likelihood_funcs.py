@@ -156,28 +156,25 @@ def get_element(array1, array2, analysis_times, covariance_matrix):
     """
     This computes a single element of the Fisher matrix corresponding to dict1 and dict2.
 
+    The element is given by the inner product of the two arrays, weighted by the covariance 
+    matrix. In general this converges to an integral in the limit of a large number of
+    analysis times. However, for the case of a diagonal covariance matrix (i.e. white noise), the
+    inner product must be scaled by dt. 
+
     Returns a real scalar.
+    
     """
 
-    #return np.real(
-    #    np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
-    #    / (analysis_times[-1] - analysis_times[0]) 
-    #)
-
-    #if np.allclose(covariance_matrix[0], np.diag(np.diagonal(covariance_matrix[0]))): # should really make this true for every mode
-    #    return np.real(
-    #        np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
-    #        * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
-    #    )
-    #else:
-    #    return np.real(
-    #        np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
-    #    )
- 
-    return np.real(
-        np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
-        * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
-    )
+    # TODO: Make this more general
+    if np.allclose(covariance_matrix[0], np.diag(np.diagonal(covariance_matrix[0]))):
+        return np.real(
+            np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
+            * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
+        )
+    else:
+        return np.real(
+            np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
+        )
 
 
 def get_fisher_matrix(

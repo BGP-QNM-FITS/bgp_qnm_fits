@@ -1,5 +1,7 @@
 import numpy as np
 import scipy 
+import pickle 
+
 from funcs.likelihood_funcs import *
 from funcs.GP_funcs import *
 from funcs.utils import *
@@ -72,6 +74,65 @@ def get_params(
     }
 
     return param_dict_lm
+
+
+def train_hyper_params(
+    training_start_time,
+    training_end_time,
+    time_step,
+    initial_params,
+    bounds,
+    param_dict,
+    R_dict,
+    hyperparam_rule_dict,
+    kernel,
+    training_modes,
+    mode_rules,
+    ):
+
+    """
+    This trains on the chosen data and modes to get the 
+    hyperparameters and the tuned parameters.
+    
+    """
+
+    analysis_times = np.arange(
+        training_start_time,
+        training_start_time + training_end_time,
+        time_step,
+    )
+
+    hyperparam_list, le = get_minimised_hyperparams(
+        initial_params,
+        bounds,
+        param_dict,
+        R_dict,
+        hyperparam_rule_dict,
+        analysis_times,
+        kernel,
+        training_modes,
+        mode_rules,
+    )
+
+    print(
+        "Optimal parameters:",
+        dict(zip(hyperparam_rule_dict.keys(), hyperparam_list)),
+        "Log evidence:",
+        le,
+    )
+
+    print("Tuning parameters...")
+
+    tuned_params_sim_lm = {}
+
+    for sim_id in mode_rules.keys():
+        tuned_params_sim_lm[sim_id] = get_tuned_params(
+            param_dict[sim_id],
+            hyperparam_list,
+            hyperparam_rule_dict,
+        )
+
+    return hyperparam_list, le, tuned_params_sim_lm
 
 
 def log_evidence(K, f):

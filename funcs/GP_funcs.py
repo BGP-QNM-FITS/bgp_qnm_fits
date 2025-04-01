@@ -70,35 +70,6 @@ def kernel_main(analysis_times, **kwargs):
         )[None, :]
     )
 
-def kernel_test_altsigma(analysis_times, **kwargs):
-    t1 = analysis_times
-    t2 = analysis_times
-    return (
-        kwargs["sigma_max"]**2 * squared_exp_element(t1, t2, kwargs["period"])
-        * new_func(
-            t1,
-            kwargs["length_scale"],
-            kwargs["t_s"],
-            kwargs["sigma_min"],
-            1,
-            kwargs["sharpness"],
-        )[:, None]
-        * new_func(
-            t2,
-            kwargs["length_scale"],
-            kwargs["t_s"],
-            kwargs["sigma_min"],
-            1,
-            kwargs["sharpness"],
-        )[None, :]
-    )
-
-def kernel_test_stationary(analysis_times, **kwargs):
-    t1 = analysis_times
-    t2 = analysis_times
-    return (
-        kwargs["sigma_max"] ** 2 * squared_exp_element(t1, t2, kwargs["period"])
-    )
 
 def kernel_c(analysis_times, **kwargs):
     t1 = analysis_times

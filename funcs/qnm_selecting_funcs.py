@@ -56,19 +56,22 @@ def get_significance(marginal_mean, marginal_covariance):
     """
 
     # TODO: Fine tune b_a threshold for significance
-    # TODO: Deal with stability problems 
+    # TODO: Stability problems arise with n=7 everywhere. Can probably remove regularization here. 
+    # Main thing to resolve is generic instability caused by n=7. 
 
     covariance = marginal_covariance.copy() 
 
-    try:
-        L = cholesky(covariance)
-    except np.linalg.LinAlgError: 
-        covariance += np.eye(covariance.shape[0]) * 1e-10
+    regularization = 1e-15
+    while True:
+        covariance += np.eye(covariance.shape[0]) * regularization
         try:
             L = cholesky(covariance, lower=True)
+            break
         except np.linalg.LinAlgError:
-            print("Covariance matrix is not positive definite.")
-            return np.nan
+            regularization *= 10
+            if regularization > 1e-9:
+                print("Covariance matrix could not be regularized to positive definite.")
+                return np.nan
 
     b_a = -np.dot(np.linalg.inv(L), marginal_mean)
 
@@ -232,7 +235,7 @@ def get_qnm_timeseries(
 
         qnm_list_timeseries.append(qnm_list_new)
 
-        if qnm_order_reduced == [] or qnm_list_new == []:
+        if qnm_order_reduced == [] or qnm_list_new == []: # TODO: This can actually break when there's only one element 
             break 
 
     return qnm_list_timeseries

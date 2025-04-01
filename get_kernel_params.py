@@ -6,50 +6,9 @@ from funcs.utils import *
 from funcs.kernel_param_funcs import *
 import pickle
 
-SIMNUMS = [
-    "0001",
-    "0002",
-    "0003",
-    "0004",
-    "0005",
-    "0006",
-    "0007",
-    "0008",
-    "0009",
-    "0010",
-    "0011",
-    "0012",
-    "0013",
-]
-
-RINGDOWN_START_TIMES = [
-    17.0,
-    21.0,
-    23.0,
-    26.0,
-    17.0,
-    17.0,
-    17.0,
-    11.0,
-    29.0,
-    16.0,
-    12.0,
-    17.0,
-    6.0,
-]
-
-TRAINING_SPH_MODES = [
-    (2, 2),
-    (2, 1),
-    (3, 3),
-    (3, 2),
-    (4, 4),
-    (2, -2),
-    (2, -1),
-    (3, -3),
-    (3, -2),
-    (4, -4),
-]
+SIMNUMS = ["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009", "0010", "0011", "0012", "0013"]
+RINGDOWN_START_TIMES = [17.0, 21.0, 23.0, 26.0, 17.0, 17.0, 17.0, 11.0, 29.0, 16.0, 12.0, 17.0, 6.0]
+TRAINING_SPH_MODES = [(2, 2), (2, 1), (3, 3), (3, 2), (4, 4), (2, -2), (2, -1), (3, -3), (3, -2), (4, -4)]
 
 SMOOTHNESS = 16
 EPSILON = 1 / 10
@@ -58,7 +17,7 @@ EPSILON = 1 / 10
 
 TRAINING_START_TIME = -10
 TRAINING_END_TIME = 100
-TIME_STEP = 0.5
+TIME_STEP = 0.1
 
 # These are the bounds of the minimisation for the kernel hyperparameters
 
@@ -104,6 +63,10 @@ param_dict_sim_lm = {}
 
 print("Getting parameters...")
 
+# This first section is extremely generic and can be used for any subset of modes or simulations. In principle if 
+# the timesteps in R are downsampled this might slightly alter the values of sigma_max and sigma_min
+# but this shouldn't affect things too much. 
+
 for i, sim_id in enumerate(SIMNUMS):
 
     print(sim_id)
@@ -135,41 +98,21 @@ with open("param_dict_sim_lm_full.pkl", "wb") as f:
 with open("R_dict_sim_lm_full.pkl", "wb") as f:
     pickle.dump(R_sim_lm, f)
 
-breakpoint() 
-
 print("Getting hyperparameters...")
 
-analysis_times = np.arange(
-    TRAINING_START_TIME, TRAINING_START_TIME + TRAINING_END_TIME, TIME_STEP
-)
-
-hyperparam_list, le = get_minimised_hyperparams(
+hyperparam_list, le, tuned_params_sim_lm = train_hyper_params(
+    TRAINING_START_TIME,
+    TRAINING_END_TIME,
+    TIME_STEP,
     INITIAL_PARAMS,
     BOUNDS,
     param_dict_sim_lm,
     R_sim_lm,
     HYPERPARAM_RULE_DICT,
-    analysis_times,
     kernel_main,
     TRAINING_SPH_MODES,
     SIM_TRAINING_MODE_RULES,
 )
-
-print(
-    "Optimal parameters:",
-    dict(zip(HYPERPARAM_RULE_DICT.keys(), hyperparam_list)),
-    "Log evidence:",
-    le,
-)
-
-print("Tuning parameters...")
-
-tuned_params_sim_lm = {}
-
-for sim_id in SIMNUMS:
-    tuned_params_sim_lm[sim_id] = get_tuned_params(
-        param_dict_sim_lm[sim_id], hyperparam_list, HYPERPARAM_RULE_DICT
-    )
 
 with open("tuned_params.pkl", "wb") as f:
     pickle.dump(tuned_params_sim_lm, f)
