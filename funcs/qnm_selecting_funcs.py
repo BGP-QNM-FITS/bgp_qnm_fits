@@ -1,7 +1,7 @@
 """This module contains functions for selecting significant QNMs in a model."""
 
 import numpy as np
-from scipy.linalg import cholesky
+from scipy.linalg import cho_factor, cho_solve 
 from funcs.likelihood_funcs import *
 from funcs.GP_funcs import *
 from funcs.utils import *
@@ -65,7 +65,7 @@ def get_significance(marginal_mean, marginal_covariance):
     while True:
         covariance += np.eye(covariance.shape[0]) * regularization
         try:
-            L = cholesky(covariance, lower=True)
+            c, low = cho_factor(covariance)
             break
         except np.linalg.LinAlgError:
             regularization *= 10
@@ -73,12 +73,14 @@ def get_significance(marginal_mean, marginal_covariance):
                 print("Covariance matrix could not be regularized to positive definite.")
                 return np.nan
 
-    b_a = -np.dot(np.linalg.inv(L), marginal_mean)
+    b_a = -cho_solve((c, low), marginal_mean) 
 
-    if np.dot(b_a, b_a) > 3:
-        return -np.exp(-0.5 * np.dot(b_a, b_a))
-    else:
-        return np.log(1 - np.exp(-0.5 * np.dot(b_a, b_a)))
+    return 1 - np.exp(-0.5 * np.dot(b_a, b_a))
+
+    #if np.dot(b_a, b_a) > 3:
+    #    return -np.exp(-0.5 * np.dot(b_a, b_a))
+    #else:
+    #    return np.log(1 - np.exp(-0.5 * np.dot(b_a, b_a)))
 
 
 def get_significance_list(qnm_list, mean_vector, fisher_matrix):
@@ -107,7 +109,8 @@ def get_significance_list(qnm_list, mean_vector, fisher_matrix):
         marginal_mean, marginal_fisher = marginalise(
             [qnm], param_list, mean_vector, fisher_matrix
         )
-        marginal_covariance = np.linalg.inv(marginal_fisher)
+        marginal_covariance = get_inverse(marginal_fisher, epsilon=1e-10)
+
         try:
             significance = get_significance(marginal_mean, marginal_covariance)
         except np.linalg.LinAlgError as e:
@@ -182,7 +185,7 @@ def recursive_qnm_finder_ordered(
         marginal_mean, marginal_fisher = marginalise(
             [qnm_choice], param_list_reduced, mean_vector_reduced, fisher_matrix_reduced
         )
-        marginal_covariance = np.linalg.inv(marginal_fisher)
+        marginal_covariance = get_inverse(marginal_fisher)
         sig_val = get_significance(marginal_mean, marginal_covariance)
 
         if np.isnan(sig_val):

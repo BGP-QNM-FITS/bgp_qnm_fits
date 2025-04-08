@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import wasserstein_distance
+from funcs.utils import get_inverse
 
 def squared_exp_element(t1, t2, period):
     dist = np.abs(t1[:, None] - t2[None, :])
@@ -108,7 +109,7 @@ def compute_kernel_matrix(analysis_times, hyperparams, kernel):
 
 def kl_divergence(p, q):
     dim = p.shape[0]
-    inv_q = np.linalg.inv(q)
+    inv_q = get_inverse(q) 
     trace_term = np.trace(inv_q @ p)
     log_det_p = np.linalg.slogdet(p)[1]
     log_det_q = np.linalg.slogdet(q)[1]
@@ -135,7 +136,7 @@ def ws_distance(p, q):
     return wasserstein_distance(p.flatten(), q.flatten())
 
 
-def get_GP_covariance_matrix(
+def get_inv_GP_covariance_matrix(
     analysis_times, kernel, tuned_param_dict, spherical_modes=None
 ):
     if spherical_modes == None:
@@ -146,6 +147,6 @@ def get_GP_covariance_matrix(
     }
 
     return np.array(
-        [np.linalg.inv(kernel_dict[mode]) for mode in spherical_modes],
+        [get_inverse(kernel_dict[mode]) for mode in spherical_modes], # TODO: Double check this is a valid inverse calc 
         dtype=np.complex128,
     )

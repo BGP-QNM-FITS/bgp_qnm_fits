@@ -7,7 +7,9 @@ parameters.
 
 import numpy as np
 import qnmfits
+from funcs.utils import * 
 from funcs.GP_funcs import *
+from scipy.misc import derivative
 
 
 def domega_dchif(ell, m, n, p, Mf_0, chif_0, delta=0.01):
@@ -15,7 +17,7 @@ def domega_dchif(ell, m, n, p, Mf_0, chif_0, delta=0.01):
     chifs = np.linspace(chif_0 - delta, chif_0 + delta, 11)
     omegas = qnmfits.qnm.omega(ell, m, n, p, chifs, Mf=Mf_0)
     df = np.gradient(omegas, chifs)
-    return df[5]
+    return df[len(chifs) // 2]
 
 
 def dmu_dchif(lp, mp, ell, m, n, p, chif_0, delta=0.01):
@@ -25,7 +27,7 @@ def dmu_dchif(lp, mp, ell, m, n, p, chif_0, delta=0.01):
     if isinstance(mus, int):
         mus = np.zeros(11)
     df = np.gradient(mus, chifs)
-    return df[5]
+    return df[len(chifs) // 2]
 
 
 def const_model_term_generator(qnms, spherical_modes, t_list, C_0, Mf_0, chif_mag_0):
@@ -183,7 +185,7 @@ def get_fisher_matrix(
     analysis_times,
     Mf_0,
     chif_mag_0,
-    covariance_matrix,
+    inv_covariance_matrix,
     C_0=None,
     include_chif=False,
     include_Mf=False,
@@ -214,7 +216,7 @@ def get_fisher_matrix(
     for i in range(len(param_list)):
         for j in range(i + 1):
             element = get_element(
-                matrix1[i, :, :], matrix2[j, :, :], analysis_times, covariance_matrix
+                matrix1[i, :, :], matrix2[j, :, :], analysis_times, inv_covariance_matrix
             )
             fisher_matrix[i, j] = element
             if i != j:
@@ -230,7 +232,7 @@ def get_b_vector(
     data,  # this must be masked in advance
     Mf_0,
     chif_mag_0,
-    covariance_matrix,
+    inv_covariance_matrix,
     C_0=None,
     include_chif=False,
     include_Mf=False,
@@ -251,9 +253,9 @@ def get_b_vector(
         C_0 = [0] * len(qnm_list)
         h_0 = np.zeros((len(spherical_modes), len(analysis_times)))
     else:
-        print(
-            "Note that the mean vector is now cov_matrix @ b PLUS theta_0 (the true parameter values)"
-        )
+        #print(
+        #    "Note that the mean vector is now cov_matrix @ b PLUS theta_0 (the true parameter values)"
+        #)
         h_0 = const_model_term_generator(
             qnm_list, spherical_modes, analysis_times, C_0, Mf_0, chif_mag_0
         )
@@ -271,11 +273,182 @@ def get_b_vector(
             np.conj(sph_matrix[i, :, :]),
             data_array_new,
             analysis_times,
-            covariance_matrix,
+            inv_covariance_matrix,
         )
         b_vector[i] = element
 
     return b_vector
+
+
+def get_model(amplitude_vector, modes, times_mask, t0, mu_lists, frequencies, spherical_modes):
+
+    a = np.concatenate([np.array([
+        mu_lists[i][j]*np.exp(-1j*frequencies[j]*(times_mask-t0)) 
+        for j in range(len(frequencies))]).T 
+        for i in range(len(spherical_modes))])
+    
+    C = []
+    for i in range(len(modes)):
+        C.append(amplitude_vector[2*i] + 1j*amplitude_vector[2*i+1])
+    
+    # Evaluate the model
+    model = np.einsum('ij,j->i', a, C)
+
+    model_dict = {}
+    
+    for i, lm in enumerate(spherical_modes):
+        model_dict[lm] = model[i*len(times_mask):(i+1)*len(times_mask)]
+
+    return model_dict
+
+
+def qnm_BGP_fit_lite(
+    times,
+    data_dict,
+    modes,
+    Mf,
+    chif,
+    t0,
+    kernel_param_dict,
+    kernel,
+    t0_method="geq",
+    T=100,
+    spherical_modes=None,
+    include_chif=False,
+    include_Mf=False,
+):
+
+    # Use the requested spherical modes
+    if spherical_modes is None:
+        spherical_modes = list(data_dict.keys())
+
+    epsilon = 1e-9
+
+    # Mask the data with the requested method
+    if t0_method == "geq":
+
+        data_mask = (times >= t0 - epsilon) & (times < t0 + T - epsilon)
+
+        times_mask = times[data_mask]
+        data_dict_mask = {lm: data_dict[lm][data_mask] for lm in spherical_modes}
+
+    elif t0_method == "closest":
+
+        start_index = np.argmin((times - t0) ** 2)
+        end_index = np.argmin((times - t0 - T) ** 2)
+
+        times_mask = times[start_index:end_index]
+        data_dict_mask = {
+            lm: data_dict[lm][start_index:end_index] for lm in spherical_modes
+        }
+
+    else:
+        print(
+            """Requested t0_method is not valid. Please choose between
+              'geq' and 'closest'."""
+        )
+
+    model_times = times_mask - t0
+
+    # Frequencies
+    # -----------
+
+    frequencies = np.array(qnmfits.qnm.omega_list(modes, chif, Mf))
+
+    # A list of lists for the mixing coefficient indices. 
+    indices_lists = [
+        [lm_mode+mode for mode in modes] for lm_mode in spherical_modes]
+    
+    # Convert each tuple of indices in indices_lists to a mu value
+    mu_lists = [qnmfits.qnm.mu_list(indices, chif) for indices in indices_lists]
+
+    # Noise covariance matrix
+    # -----------
+
+    inv_noise_covariance_matrix = get_inv_GP_covariance_matrix(
+        times_mask, kernel, kernel_param_dict, spherical_modes
+    )
+
+    # If include_chif or include_chif are True, we need to get reference values 
+
+    C_0 = None 
+    ref_params = [0] * (2 * len(modes))
+
+    if include_chif or include_Mf:
+        ls_fit = qnmfits.multimode_ringdown_fit(
+                        times,
+                        data_dict,
+                        modes=modes,
+                        Mf=Mf,
+                        chif=chif,
+                        t0=t0,
+                        T=T,
+                        spherical_modes=spherical_modes,
+                    )
+        
+        C_0 = ls_fit["C"]
+
+        ref_params = []
+        for re_c, im_c in zip(np.real(ls_fit["C"]), np.imag(ls_fit["C"])):
+            ref_params.append(re_c)
+            ref_params.append(im_c)
+
+        if include_chif:
+            ref_params = ref_params + [chif]
+        if include_Mf:
+            ref_params = ref_params + [Mf]
+
+    # Mean & covariance calculations 
+    # -----------
+
+    fisher_matrix = get_fisher_matrix(
+        modes, 
+        spherical_modes, 
+        model_times, 
+        Mf, 
+        chif, 
+        inv_noise_covariance_matrix, 
+        C_0=C_0, 
+        include_chif=include_chif, 
+        include_Mf=include_Mf
+    )
+
+    b_vector = get_b_vector(
+        modes,
+        spherical_modes,
+        model_times,
+        data_dict_mask,
+        Mf,
+        chif,
+        inv_noise_covariance_matrix,
+        C_0=C_0,
+        include_chif=include_chif,
+        include_Mf=include_Mf,
+    )
+
+    mean_vector = np.linalg.solve(fisher_matrix, b_vector) + ref_params
+    covariance_matrix = get_inverse(fisher_matrix, epsilon=1e-10)
+
+    labels = [str(mode) for mode in modes]
+
+    # Store all useful information to a output dictionary
+    best_fit = {
+        "mean": mean_vector, 
+        "covariance": covariance_matrix,    
+        "fisher_matrix": fisher_matrix,
+        "b_vector": b_vector,
+        "inv_noise_covariance": inv_noise_covariance_matrix,
+        "data": data_dict_mask,
+        "model_times": times_mask,
+        "t0": t0,
+        "modes": modes,
+        "mode_labels": labels,
+        "frequencies": frequencies,
+    }
+
+    # Return the output dictionary
+    return best_fit
+
 
 
 def qnm_BGP_fit(
@@ -290,7 +463,12 @@ def qnm_BGP_fit(
     t0_method="geq",
     T=100,
     spherical_modes=None,
+    include_chif=False,
+    include_Mf=False,
+    N_samples = 1000
 ):
+    
+    # TODO tidy and speed up the latter part of this function 
 
     # Use the requested spherical modes
     if spherical_modes is None:
@@ -301,10 +479,9 @@ def qnm_BGP_fit(
     # Mask the data with the requested method
     if t0_method == "geq":
 
-        data_mask = (times >= t0 - epsilon) & (times < t0 + T)
+        data_mask = (times >= t0 - epsilon) & (times < t0 + T - epsilon)
 
-        times = times[data_mask]
-        data = np.concatenate([data_dict[lm][data_mask] for lm in spherical_modes])
+        times_mask = times[data_mask]
         data_dict_mask = {lm: data_dict[lm][data_mask] for lm in spherical_modes}
 
     elif t0_method == "closest":
@@ -312,10 +489,7 @@ def qnm_BGP_fit(
         start_index = np.argmin((times - t0) ** 2)
         end_index = np.argmin((times - t0 - T) ** 2)
 
-        times = times[start_index:end_index]
-        data = np.concatenate(
-            [data_dict[lm][start_index:end_index] for lm in spherical_modes]
-        )
+        times_mask = times[start_index:end_index]
         data_dict_mask = {
             lm: data_dict[lm][start_index:end_index] for lm in spherical_modes
         }
@@ -326,25 +500,69 @@ def qnm_BGP_fit(
               'geq' and 'closest'."""
         )
 
-    model_times = times - t0
+    model_times = times_mask - t0
 
     # Frequencies
     # -----------
 
     frequencies = np.array(qnmfits.qnm.omega_list(modes, chif, Mf))
 
+    # A list of lists for the mixing coefficient indices. 
+    indices_lists = [
+        [lm_mode+mode for mode in modes] for lm_mode in spherical_modes]
+    
+    # Convert each tuple of indices in indices_lists to a mu value
+    mu_lists = [qnmfits.qnm.mu_list(indices, chif) for indices in indices_lists]
+
     # Noise covariance matrix
     # -----------
 
-    noise_covariance_matrix = get_GP_covariance_matrix(
-        times, kernel, kernel_param_dict, spherical_modes
+    inv_noise_covariance_matrix = get_inv_GP_covariance_matrix(
+        times_mask, kernel, kernel_param_dict, spherical_modes
     )
+
+    # If include_chif or include_chif are True, we need to get reference values 
+
+    C_0 = None 
+    ref_params = [0] * (2 * len(modes))
+
+    if include_chif or include_Mf:
+        ls_fit = qnmfits.multimode_ringdown_fit(
+                        times,
+                        data_dict,
+                        modes=modes,
+                        Mf=Mf,
+                        chif=chif,
+                        t0=t0,
+                        T=T,
+                        spherical_modes=spherical_modes,
+                    )
+        
+        C_0 = ls_fit["C"]
+
+        ref_params = []
+        for re_c, im_c in zip(np.real(ls_fit["C"]), np.imag(ls_fit["C"])):
+            ref_params.append(re_c)
+            ref_params.append(im_c)
+
+        if include_chif:
+            ref_params = ref_params + [chif]
+        if include_Mf:
+            ref_params = ref_params + [Mf]
 
     # Mean & covariance calculations 
     # -----------
 
     fisher_matrix = get_fisher_matrix(
-        modes, spherical_modes, model_times, Mf, chif, noise_covariance_matrix
+        modes, 
+        spherical_modes, 
+        model_times, 
+        Mf, 
+        chif, 
+        inv_noise_covariance_matrix, 
+        C_0=C_0, 
+        include_chif=include_chif, 
+        include_Mf=include_Mf
     )
 
     b_vector = get_b_vector(
@@ -354,23 +572,69 @@ def qnm_BGP_fit(
         data_dict_mask,
         Mf,
         chif,
-        noise_covariance_matrix,
+        inv_noise_covariance_matrix,
+        C_0=C_0,
+        include_chif=include_chif,
+        include_Mf=include_Mf,
     )
 
-    mean_vector = np.linalg.solve(fisher_matrix, b_vector)
-    covariance_matrix = np.linalg.inv(fisher_matrix)
+    mean_vector = np.linalg.solve(fisher_matrix, b_vector) + ref_params
+    covariance_matrix = get_inverse(fisher_matrix, epsilon=1e-10)
 
     labels = [str(mode) for mode in modes]
+
+    # Get samples for percentile calculations 
+    # --------------------------------------
+
+    samples = scipy.stats.multivariate_normal(
+        mean_vector, covariance_matrix, allow_singular=True
+        ).rvs(size=N_samples)
+
+
+    # Get the absolute values of the amplitude and phase 
+    # --------------------------------------
+
+    num_amplitude_params = len(modes) * 2 
+
+    mean_re = mean_vector[:num_amplitude_params:2]  
+    mean_im = mean_vector[1:num_amplitude_params:2] 
+    abs_amplitudes = np.sqrt(mean_re**2 + mean_im**2)  
+    phases = np.arctan2(mean_im, mean_re) 
+
+    samples_re = samples[:, :num_amplitude_params:2]  
+    samples_im = samples[:, 1:num_amplitude_params:2]  
+
+    sample_abs_amplitudes = np.sqrt(samples_re**2 + samples_im**2)  
+    sample_phases = np.arctan2(samples_im, samples_re)  
+
+    percentiles = (10, 25, 50, 75, 90)
+    abs_amplitude_percentiles = np.percentile(sample_abs_amplitudes, percentiles, axis=0)
+    phases_percentiles = np.percentile(sample_phases, percentiles, axis=0)
+
+    # Get the mismatch uncertainty
+    # --------------------------------------
+
+    model_dict = get_model(mean_vector, modes, times_mask, t0, mu_lists, frequencies, spherical_modes)
+    unweighed_mm = unweighted_mismatch(model_dict, data_dict_mask) # TODO: Check whether Eliot's implementation or this one is correct 
+    weighted_mm = weighted_mismatch(model_dict, data_dict_mask, inv_noise_covariance_matrix)
 
     # Store all useful information to a output dictionary
     best_fit = {
         "mean": mean_vector,
-        "covariance": covariance_matrix,
+        "mean_abs_amplitude": abs_amplitudes,
+        "abs_amplitude_percentiles": abs_amplitude_percentiles,
+        "mean_phase": phases,
+        "phase_percentiles": phases_percentiles, 
+        "covariance": covariance_matrix,    
         "fisher_matrix": fisher_matrix,
         "b_vector": b_vector,
-        "noise_covariance": noise_covariance_matrix,
-        "data": data_dict,
-        "model_times": times,
+        "inv_noise_covariance": inv_noise_covariance_matrix,
+        "samples": samples,
+        "data": data_dict_mask,
+        "model": model_dict,
+        "model_times": times_mask,
+        "unweighted_mismatch": unweighed_mm,
+        "weighted_mismatch": weighted_mm,
         "t0": t0,
         "modes": modes,
         "mode_labels": labels,
