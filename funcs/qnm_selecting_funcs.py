@@ -56,25 +56,9 @@ def get_significance(marginal_mean, marginal_covariance):
     """
 
     # TODO: Fine tune b_a threshold for significance
-    # TODO: Stability problems arise with n=7 everywhere. Can probably remove regularization here. 
-    # Main thing to resolve is generic instability caused by n=7. 
 
-    covariance = marginal_covariance.copy() 
-
-    regularization = 1e-15
-    while True:
-        covariance += np.eye(covariance.shape[0]) * regularization
-        try:
-            c, low = cho_factor(covariance)
-            break
-        except np.linalg.LinAlgError:
-            regularization *= 10
-            if regularization > 1e-9:
-                print("Covariance matrix could not be regularized to positive definite.")
-                return np.nan
-
-    b_a = -cho_solve((c, low), marginal_mean) 
-
+    L = np.linalg.cholesky(marginal_covariance)
+    b_a = np.linalg.solve(L, marginal_mean) 
     return 1 - np.exp(-0.5 * np.dot(b_a, b_a))
 
     #if np.dot(b_a, b_a) > 3:
@@ -114,7 +98,6 @@ def get_significance_list(qnm_list, mean_vector, fisher_matrix):
         try:
             significance = get_significance(marginal_mean, marginal_covariance)
         except np.linalg.LinAlgError as e:
-            # This is just to catch rare instances where Cholesky decomposition fails.
             print(f"Cholesky decomposition failed for {qnm}: {e}")
             significance = np.nan
         sig_list.append(significance)

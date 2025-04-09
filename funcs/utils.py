@@ -38,10 +38,13 @@ def sim_interpolator(sim, new_times):
     return sim_new
 
 
-def get_time_shift(sim1, sim2, delta=0.0001, alpha=0.1, t0=-100, T=100):
+def get_time_shift(sim1, sim2, modes=None, delta=0.0001, alpha=0.1, t0=-100, T=100):
 
     # Mask data to speed up interpolating (and shifting) 
     # But need to apply a smooth buffer 
+
+    if modes is None:
+        modes = sim1.h.keys()
 
     mask1 = (sim1.times >= t0) & (sim1.times < T)
     mask2 = (sim2.times >= t0) & (sim2.times < T)
@@ -72,7 +75,7 @@ def get_time_shift(sim1, sim2, delta=0.0001, alpha=0.1, t0=-100, T=100):
             np.fft.ifft(
                 np.fft.fft(h1_int[mode]) * np.conjugate(np.fft.fft(h2_int[mode]))
             )
-            for mode in h1_int.keys()
+            for mode in modes
         ],
         axis=0,
     )

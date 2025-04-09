@@ -615,7 +615,7 @@ def qnm_BGP_fit(
     # --------------------------------------
 
     model_dict = get_model(mean_vector, modes, times_mask, t0, mu_lists, frequencies, spherical_modes)
-    unweighed_mm = unweighted_mismatch(model_dict, data_dict_mask) # TODO: Check whether Eliot's implementation or this one is correct 
+    unweighed_mm = unweighted_mismatch(model_dict, data_dict_mask)
     weighted_mm = weighted_mismatch(model_dict, data_dict_mask, inv_noise_covariance_matrix)
 
     # Store all useful information to a output dictionary

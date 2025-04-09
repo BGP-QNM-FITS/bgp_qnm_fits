@@ -12,8 +12,7 @@ def get_residuals(sim_main, sim_lower, t0, T, dt=None):
 
     # Perform a time shift
 
-    # TODO shift sensitive to range, maybe because of cutting the waveform and doing fft (but it's not a huge effect; on the order of 0.01)
-    time_shift = get_time_shift(sim_main, sim_lower, delta=0.0001, range=35)
+    time_shift = get_time_shift(sim_main, sim_lower, delta=0.0001, alpha=0.1, t0=-100, T=100)
     sim_lower.zero_time = -time_shift
     sim_lower.time_shift()
 

@@ -147,6 +147,6 @@ def get_inv_GP_covariance_matrix(
     }
 
     return np.array(
-        [get_inverse(kernel_dict[mode]) for mode in spherical_modes], # TODO: Double check this is a valid inverse calc 
+        [get_inverse(kernel_dict[mode]) for mode in spherical_modes],
         dtype=np.complex128,
     )
