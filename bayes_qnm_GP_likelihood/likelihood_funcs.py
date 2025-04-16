@@ -1,0 +1,660 @@
+"""This module contains functions for computing the Fisher matrix and b vector for a given set of
+QNMs and spherical modes.
+
+It also includes functions for marginalising over parameters and computing the significance of
+parameters.
+"""
+
+import numpy as np
+import qnmfits
+from bayes_qnm_GP_likelihood.utils import * 
+from bayes_qnm_GP_likelihood.GP_funcs import *
+
+
+def domega_dchif(ell, m, n, p, Mf_0, chif_0, delta=0.01):
+    """Compute domega/dchif for a given QNM."""
+    chifs = np.linspace(chif_0 - delta, chif_0 + delta, 11)
+    omegas = qnmfits.qnm.omega(ell, m, n, p, chifs, Mf=Mf_0)
+    df = np.gradient(omegas, chifs)
+    return df[len(chifs) // 2]
+
+
+def dmu_dchif(lp, mp, ell, m, n, p, chif_0, delta=0.01):
+    """Compute dmu/dchif for a given QNM."""
+    chifs = np.linspace(chif_0 - delta, chif_0 + delta, 11)
+    mus = qnmfits.qnm.mu(lp, mp, ell, m, n, p, chifs)
+    if isinstance(mus, int):
+        mus = np.zeros(11)
+    df = np.gradient(mus, chifs)
+    return df[len(chifs) // 2]
+
+
+def const_model_term_generator(qnms, spherical_modes, t_list, C_0, Mf_0, chif_mag_0):
+    """Computes the H_* term for a given set of QNMs. Returns a len(spherical_modes) x len(t_list)
+    array."""
+    lm_matrix = np.zeros((len(spherical_modes), len(t_list)), dtype=complex)
+    omegas = qnmfits.qnm.omega_list(
+        qnms, chif_mag_0, Mf_0
+    )  # Note this returns omega / Mf
+    for i, mode in enumerate(spherical_modes):
+        mus = qnmfits.qnm.mu_list([mode + indices for indices in qnms], chif_mag_0)
+        lm_matrix[i] = sum(
+            C_0[j] * mus[j] * np.exp(-1j * omegas[j] * t_list)
+            for j, indices in enumerate(qnms)
+        )
+    return lm_matrix
+
+
+def re_amplitude_model_term_generator(
+    indices, spherical_modes, t_list, chif_mag_0, omega
+):
+    """Computes the real part of the amplitude model term for a given set of QNMs. Returns a
+    len(spherical_modes) x len(t_list) array."""
+    return [
+        np.exp(-1j * omega * t_list)
+        * qnmfits.qnm.mu_list([mode + indices], chif_mag_0)[0]
+        for mode in spherical_modes
+    ]
+
+
+def im_amplitude_model_term_generator(
+    indices, spherical_modes, t_list, chif_mag_0, omega
+):
+    """Computes the imaginary part of the amplitude model term for a given set of QNMs. Returns a
+    len(spherical_modes) x len(t_list) array."""
+    return [
+        1j
+        * np.exp(-1j * omega * t_list)
+        * qnmfits.qnm.mu_list([mode + indices], chif_mag_0)[0]
+        for mode in spherical_modes
+    ]
+
+
+def mass_model_term_generator(
+    qnms, spherical_modes, t_list, C_0, Mf_0, chif_mag_0, omegas
+):
+    """Computes the Mf term for a given set of QNMs. Returns a len(spherical_modes) x len(t_list)
+    array."""
+    lm_matrix = np.zeros((len(spherical_modes), len(t_list)), dtype=complex)
+    for i, mode in enumerate(spherical_modes):
+        mus = qnmfits.qnm.mu_list([mode + indices for indices in qnms], chif_mag_0)
+        lm_matrix[i] = sum(
+            C_0[i]
+            * np.exp(-1j * omegas[i] * t_list)
+            * (1j * mus[i] * omegas[i] * t_list)
+            / Mf_0
+            for i in range(len(qnms))
+        )
+    return lm_matrix
+
+
+def chif_model_term_generator(
+    qnms, spherical_modes, t_list, C_0, Mf_0, chif_mag_0, omegas
+):
+    """Computes the chif_mag term for a given set of QNMs. Returns a len(spherical_modes) x
+    len(t_list) array."""
+    lm_matrix = np.zeros((len(spherical_modes), len(t_list)), dtype=complex)
+    for i, mode in enumerate(spherical_modes):
+        lp, mp = mode
+        term = np.zeros(len(t_list), dtype=complex)
+        for j, indices in enumerate(qnms):
+            l, m, n, p = indices
+            term += (
+                C_0[j]
+                * np.exp(-1j * omegas[j] * t_list)
+                * (
+                    dmu_dchif(lp, mp, l, m, n, p, chif_mag_0)
+                    - 1j
+                    * qnmfits.qnm.mu_list([mode + indices], chif_mag_0)[0]
+                    * t_list
+                    * domega_dchif(l, m, n, p, Mf_0, chif_mag_0)
+                )
+            )
+        lm_matrix[i] = term
+    return lm_matrix
+
+
+def precompute_dict(
+    param_list, qnm_list, spherical_modes, analysis_times, C_0, Mf_0, chif_mag_0
+):
+    """This precomputes the terms in the linearised model for each parameter in param_list.
+
+    Returns a len(param_list) x len(spherical_modes) x len(analysis_times) array.
+    """
+
+    sph_matrix = np.zeros(
+        (len(param_list), len(spherical_modes), len(analysis_times)), dtype=complex
+    )
+
+    omegas = qnmfits.qnm.omega_list(qnm_list, chif_mag_0, Mf_0)  # This is omega / Mf
+
+    for i, param in enumerate(param_list):
+        if param == "chif":
+            list = chif_model_term_generator(
+                qnm_list, spherical_modes, analysis_times, C_0, Mf_0, chif_mag_0, omegas
+            )
+        elif param == "Mf":
+            list = mass_model_term_generator(
+                qnm_list, spherical_modes, analysis_times, C_0, Mf_0, chif_mag_0, omegas
+            )
+        elif i % 2 == 0:
+            indices = param
+            list = re_amplitude_model_term_generator(
+                indices, spherical_modes, analysis_times, chif_mag_0, omegas[i // 2]
+            )
+        else:
+            indices = param
+            list = im_amplitude_model_term_generator(
+                indices, spherical_modes, analysis_times, chif_mag_0, omegas[i // 2]
+            )
+
+        sph_matrix[i] = list
+
+    return sph_matrix
+
+
+def get_element(array1, array2, analysis_times, covariance_matrix):
+    """
+    This computes a single element of the Fisher matrix corresponding to dict1 and dict2.
+
+    The element is given by the inner product of the two arrays, weighted by the covariance 
+    matrix. In general this converges to an integral in the limit of a large number of
+    analysis times. However, for the case of a diagonal covariance matrix (i.e. white noise), the
+    inner product must be scaled by dt. 
+
+    Returns a real scalar.
+    
+    """
+
+    # TODO: Make this more general
+    if np.allclose(covariance_matrix[0], np.diag(np.diagonal(covariance_matrix[0]))):
+        return np.real(
+            np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
+            * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
+        )
+    else:
+        return np.real(
+            np.einsum("bi,bj,bij->", array1, array2, covariance_matrix)
+        )
+
+
+def get_fisher_matrix(
+    qnm_list,
+    spherical_modes,
+    analysis_times,
+    Mf_0,
+    chif_mag_0,
+    inv_covariance_matrix,
+    C_0=None,
+    include_chif=False,
+    include_Mf=False,
+):
+    """This computes the Fisher matrix for the parameters in param_list.
+
+    Returns a len(param_list) x len(param_list) array.
+    """
+
+    param_list = [qnm for qnm in qnm_list for _ in range(2)]
+    if include_chif:
+        param_list = param_list + ["chif"]
+    if include_Mf:
+        param_list = param_list + ["Mf"]
+
+    # C_0 only needed if chif or Mf are included. Otherwise use a dummy value.
+    if not (include_chif or include_Mf):
+        C_0 = [0] * len(qnm_list)
+
+    fisher_matrix = np.zeros((len(param_list), len(param_list)))
+    sph_matrix = precompute_dict(
+        param_list, qnm_list, spherical_modes, analysis_times, C_0, Mf_0, chif_mag_0
+    )
+
+    matrix1 = np.conj(sph_matrix.copy())
+    matrix2 = sph_matrix.copy()
+
+    for i in range(len(param_list)):
+        for j in range(i + 1):
+            element = get_element(
+                matrix1[i, :, :], matrix2[j, :, :], analysis_times, inv_covariance_matrix
+            )
+            fisher_matrix[i, j] = element
+            if i != j:
+                fisher_matrix[j, i] = element
+
+    return fisher_matrix
+
+
+def get_b_vector(
+    qnm_list,
+    spherical_modes,
+    analysis_times,
+    data,  # this must be masked in advance
+    Mf_0,
+    chif_mag_0,
+    inv_covariance_matrix,
+    C_0=None,
+    include_chif=False,
+    include_Mf=False,
+):
+    """This computes the b vector for the parameters in param_list.
+
+    Returns a len(param_list) array.
+    """
+
+    param_list = [qnm for qnm in qnm_list for _ in range(2)]
+    if include_chif:
+        param_list = param_list + ["chif"]
+    if include_Mf:
+        param_list = param_list + ["Mf"]
+
+    # C_0 only needed if chif or Mf are included. Otherwise use a dummy value.
+    if not (include_chif or include_Mf):
+        C_0 = [0] * len(qnm_list)
+        h_0 = np.zeros((len(spherical_modes), len(analysis_times)))
+    else:
+        #print(
+        #    "Note that the mean vector is now cov_matrix @ b PLUS theta_0 (the true parameter values)"
+        #)
+        h_0 = const_model_term_generator(
+            qnm_list, spherical_modes, analysis_times, C_0, Mf_0, chif_mag_0
+        )
+
+    b_vector = np.zeros((len(param_list)))
+    sph_matrix = precompute_dict(
+        param_list, qnm_list, spherical_modes, analysis_times, C_0, Mf_0, chif_mag_0
+    )
+
+    data_array = np.array([np.array(data[mode]) for mode in spherical_modes])
+    data_array_new = data_array - h_0
+
+    for i in range(len(param_list)):
+        element = get_element(
+            np.conj(sph_matrix[i, :, :]),
+            data_array_new,
+            analysis_times,
+            inv_covariance_matrix,
+        )
+        b_vector[i] = element
+
+    return b_vector
+
+
+def get_model(amplitude_vector, modes, times_mask, t0, mu_lists, frequencies, spherical_modes):
+
+    a = np.concatenate([np.array([
+        mu_lists[i][j]*np.exp(-1j*frequencies[j]*(times_mask-t0)) 
+        for j in range(len(frequencies))]).T 
+        for i in range(len(spherical_modes))])
+    
+    C = []
+    for i in range(len(modes)):
+        C.append(amplitude_vector[2*i] + 1j*amplitude_vector[2*i+1])
+    
+    # Evaluate the model
+    model = np.einsum('ij,j->i', a, C)
+
+    model_dict = {}
+    
+    for i, lm in enumerate(spherical_modes):
+        model_dict[lm] = model[i*len(times_mask):(i+1)*len(times_mask)]
+
+    return model_dict
+
+
+def qnm_BGP_fit_lite(
+    times,
+    data_dict,
+    modes,
+    Mf,
+    chif,
+    t0,
+    kernel_param_dict,
+    kernel,
+    t0_method="geq",
+    T=100,
+    spherical_modes=None,
+    include_chif=False,
+    include_Mf=False,
+):
+
+    # Use the requested spherical modes
+    if spherical_modes is None:
+        spherical_modes = list(data_dict.keys())
+
+    epsilon = 1e-9
+
+    # Mask the data with the requested method
+    if t0_method == "geq":
+
+        data_mask = (times >= t0 - epsilon) & (times < t0 + T - epsilon)
+
+        times_mask = times[data_mask]
+        data_dict_mask = {lm: data_dict[lm][data_mask] for lm in spherical_modes}
+
+    elif t0_method == "closest":
+
+        start_index = np.argmin((times - t0) ** 2)
+        end_index = np.argmin((times - t0 - T) ** 2)
+
+        times_mask = times[start_index:end_index]
+        data_dict_mask = {
+            lm: data_dict[lm][start_index:end_index] for lm in spherical_modes
+        }
+
+    else:
+        print(
+            """Requested t0_method is not valid. Please choose between
+              'geq' and 'closest'."""
+        )
+
+    model_times = times_mask - t0 
+
+    # Frequencies
+    # -----------
+
+    frequencies = np.array(qnmfits.qnm.omega_list(modes, chif, Mf))
+
+    # A list of lists for the mixing coefficient indices. 
+    indices_lists = [
+        [lm_mode+mode for mode in modes] for lm_mode in spherical_modes]
+    
+    # Convert each tuple of indices in indices_lists to a mu value
+    mu_lists = [qnmfits.qnm.mu_list(indices, chif) for indices in indices_lists]
+
+    # Noise covariance matrix
+    # -----------
+
+    inv_noise_covariance_matrix = get_inv_GP_covariance_matrix(
+        times_mask, kernel, kernel_param_dict, spherical_modes
+    )
+
+    # If include_chif or include_chif are True, we need to get reference values 
+
+    C_0 = None 
+    ref_params = [0] * (2 * len(modes))
+
+    if include_chif or include_Mf:
+        ls_fit = qnmfits.multimode_ringdown_fit(
+                        times,
+                        data_dict,
+                        modes=modes,
+                        Mf=Mf,
+                        chif=chif,
+                        t0=t0,
+                        T=T,
+                        spherical_modes=spherical_modes,
+                        t0_method="closest"
+                    )
+        
+        C_0 = ls_fit["C"]
+
+        ref_params = []
+        for re_c, im_c in zip(np.real(ls_fit["C"]), np.imag(ls_fit["C"])):
+            ref_params.append(re_c)
+            ref_params.append(im_c)
+
+        if include_chif:
+            ref_params = ref_params + [chif]
+        if include_Mf:
+            ref_params = ref_params + [Mf]
+
+    # Mean & covariance calculations 
+    # -----------
+
+    fisher_matrix = get_fisher_matrix(
+        modes, 
+        spherical_modes, 
+        model_times, 
+        Mf, 
+        chif, 
+        inv_noise_covariance_matrix, 
+        C_0=C_0, 
+        include_chif=include_chif, 
+        include_Mf=include_Mf
+    )
+
+    b_vector = get_b_vector(
+        modes,
+        spherical_modes,
+        model_times,
+        data_dict_mask,
+        Mf,
+        chif,
+        inv_noise_covariance_matrix,
+        C_0=C_0,
+        include_chif=include_chif,
+        include_Mf=include_Mf,
+    )
+
+    mean_vector = np.linalg.solve(fisher_matrix, b_vector) + ref_params
+    covariance_matrix = get_inverse(fisher_matrix, epsilon=1e-10)
+
+    labels = [str(mode) for mode in modes]
+
+    # Store all useful information to a output dictionary
+    best_fit = {
+        "mean": mean_vector, 
+        "covariance": covariance_matrix,    
+        "fisher_matrix": fisher_matrix,
+        "b_vector": b_vector,
+        "inv_noise_covariance": inv_noise_covariance_matrix,
+        "data": data_dict_mask,
+        "model_times": times_mask,
+        "t0": t0,
+        "modes": modes,
+        "mode_labels": labels,
+        "frequencies": frequencies,
+    }
+
+    # Return the output dictionary
+    return best_fit
+
+
+
+def qnm_BGP_fit(
+    times,
+    data_dict,
+    modes,
+    Mf,
+    chif,
+    t0,
+    kernel_param_dict,
+    kernel,
+    t0_method="geq",
+    T=100,
+    spherical_modes=None,
+    include_chif=False,
+    include_Mf=False,
+    N_samples = 1000
+):
+    
+    # TODO tidy and speed up the latter part of this function 
+
+    # Use the requested spherical modes
+    if spherical_modes is None:
+        spherical_modes = list(data_dict.keys())
+
+    epsilon = 1e-9
+
+    # Mask the data with the requested method
+    if t0_method == "geq":
+
+        data_mask = (times >= t0 - epsilon) & (times < t0 + T - epsilon)
+
+        times_mask = times[data_mask]
+        data_dict_mask = {lm: data_dict[lm][data_mask] for lm in spherical_modes}
+
+    elif t0_method == "closest":
+
+        start_index = np.argmin((times - t0) ** 2)
+        end_index = np.argmin((times - t0 - T) ** 2)
+
+        times_mask = times[start_index:end_index]
+        data_dict_mask = {
+            lm: data_dict[lm][start_index:end_index] for lm in spherical_modes
+        }
+
+    else:
+        print(
+            """Requested t0_method is not valid. Please choose between
+              'geq' and 'closest'."""
+        )
+
+    model_times = times_mask - t0
+
+    # Frequencies
+    # -----------
+
+    frequencies = np.array(qnmfits.qnm.omega_list(modes, chif, Mf))
+
+    # A list of lists for the mixing coefficient indices. 
+    indices_lists = [
+        [lm_mode+mode for mode in modes] for lm_mode in spherical_modes]
+    
+    # Convert each tuple of indices in indices_lists to a mu value
+    mu_lists = [qnmfits.qnm.mu_list(indices, chif) for indices in indices_lists]
+
+    # Noise covariance matrix
+    # -----------
+
+    inv_noise_covariance_matrix = get_inv_GP_covariance_matrix(
+        times_mask, kernel, kernel_param_dict, spherical_modes
+    )
+
+    # If include_chif or include_chif are True, we need to get reference values 
+
+    C_0 = None 
+    ref_params = [0] * (2 * len(modes))
+
+    if include_chif or include_Mf:
+        ls_fit = qnmfits.multimode_ringdown_fit(
+                        times,
+                        data_dict,
+                        modes=modes,
+                        Mf=Mf,
+                        chif=chif,
+                        t0=t0,
+                        T=T,
+                        spherical_modes=spherical_modes,
+                        t0_method="closest"
+                    )
+        
+        C_0 = ls_fit["C"]
+
+        ref_params = []
+        for re_c, im_c in zip(np.real(ls_fit["C"]), np.imag(ls_fit["C"])):
+            ref_params.append(re_c)
+            ref_params.append(im_c)
+
+        if include_chif:
+            ref_params = ref_params + [chif]
+        if include_Mf:
+            ref_params = ref_params + [Mf]
+
+    # Mean & covariance calculations 
+    # -----------
+
+    fisher_matrix = get_fisher_matrix(
+        modes, 
+        spherical_modes, 
+        model_times, 
+        Mf, 
+        chif, 
+        inv_noise_covariance_matrix, 
+        C_0=C_0, 
+        include_chif=include_chif, 
+        include_Mf=include_Mf
+    )
+
+    b_vector = get_b_vector(
+        modes,
+        spherical_modes,
+        model_times,
+        data_dict_mask,
+        Mf,
+        chif,
+        inv_noise_covariance_matrix,
+        C_0=C_0,
+        include_chif=include_chif,
+        include_Mf=include_Mf,
+    )
+
+    mean_vector = np.linalg.solve(fisher_matrix, b_vector) + ref_params
+    covariance_matrix = get_inverse(fisher_matrix, epsilon=1e-10)
+
+    labels = [str(mode) for mode in modes]
+
+    # Get samples for percentile calculations 
+    # --------------------------------------
+
+    samples = scipy.stats.multivariate_normal(
+        mean_vector, covariance_matrix, allow_singular=True
+        ).rvs(size=N_samples)
+
+    #log_samples = np.log(samples_abs_WN)
+    #samples_weights = np.exp(-np.sum(log_amplitudes_GP, axis=1))
+
+    #weighted_samples = samples * samples_weights[:, np.newaxis]
+
+    # Get the absolute values of the amplitude and phase 
+    # --------------------------------------
+
+    num_amplitude_params = len(modes) * 2 
+
+    mean_re = mean_vector[:num_amplitude_params:2]  
+    mean_im = mean_vector[1:num_amplitude_params:2] 
+    abs_amplitudes = np.sqrt(mean_re**2 + mean_im**2)  
+    phases = np.arctan2(mean_im, mean_re) 
+
+    samples_re = samples[:, :num_amplitude_params:2]  
+    samples_im = samples[:, 1:num_amplitude_params:2]  
+
+    sample_abs_amplitudes = np.sqrt(samples_re**2 + samples_im**2)  
+    sample_phases = np.arctan2(samples_im, samples_re)  
+
+    percentiles = (10, 25, 50, 75, 90)
+    abs_amplitude_percentiles = np.percentile(sample_abs_amplitudes, percentiles, axis=0)
+    phases_percentiles = np.percentile(sample_phases, percentiles, axis=0)
+
+    abs_amplitude_percentiles_dict = {
+        percentile: abs_amplitude_percentiles[i]
+        for i, percentile in enumerate(percentiles)
+    }
+
+    phases_percentiles_dict = {
+        percentile: phases_percentiles[i]
+        for i, percentile in enumerate(percentiles)
+    }
+
+    # Get the mismatch uncertainty
+    # --------------------------------------
+
+    model_dict = get_model(mean_vector, modes, times_mask, t0, mu_lists, frequencies, spherical_modes)
+    unweighed_mm = unweighted_mismatch(model_dict, data_dict_mask)
+    weighted_mm = weighted_mismatch(model_dict, data_dict_mask, inv_noise_covariance_matrix)
+
+    # Store all useful information to a output dictionary
+    best_fit = {
+        "mean": mean_vector,
+        "mean_abs_amplitude": abs_amplitudes,
+        "abs_amplitude_percentiles": abs_amplitude_percentiles_dict,
+        "mean_phase": phases,
+        "phase_percentiles": phases_percentiles_dict, 
+        "covariance": covariance_matrix,    
+        "fisher_matrix": fisher_matrix,
+        "b_vector": b_vector,
+        "inv_noise_covariance": inv_noise_covariance_matrix,
+        "samples": samples,
+        "data": data_dict_mask,
+        "model": model_dict,
+        "model_times": times_mask,
+        "unweighted_mismatch": unweighed_mm,
+        "weighted_mismatch": weighted_mm,
+        "t0": t0,
+        "modes": modes,
+        "mode_labels": labels,
+        "frequencies": frequencies,
+    }
+
+    # Return the output dictionary
+    return best_fit
