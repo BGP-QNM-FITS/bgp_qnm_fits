@@ -96,6 +96,30 @@ def get_inverse(matrix, epsilon=1e-10):
     vals = np.maximum(vals, epsilon)
     return np.einsum('ik, k, jk -> ij', vecs, 1/vals, vecs)
 
+
+def weighted_quantile(values, quantiles, weights=None):
+    values = np.array(values)
+    quantiles = np.array(quantiles)
+    if weights is None:
+        weights = np.ones(values.shape[0])
+    weights = np.array(weights)
+
+    # Sort values and weights along the first axis
+    sorter = np.argsort(values, axis=0)
+    sorted_values = np.take_along_axis(values, sorter, axis=0)
+    sorted_weights = np.take_along_axis(weights[:, None], sorter, axis=0)
+
+    # Compute cumulative weights
+    cumulative_weights = np.cumsum(sorted_weights, axis=0) - 0.5 * sorted_weights
+    cumulative_weights /= cumulative_weights[-1, :]
+    
+    # Interpolate quantiles
+    quantile_values = np.empty((len(quantiles), values.shape[1]))
+    for i in range(values.shape[1]):
+        quantile_values[:, i] = np.interp(quantiles, cumulative_weights[:, i], sorted_values[:, i])
+
+    return quantile_values
+
 ##################################################################################################################################################
 
 

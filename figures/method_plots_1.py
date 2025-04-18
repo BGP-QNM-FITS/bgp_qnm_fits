@@ -181,20 +181,15 @@ class MethodPlots:
             Mf = self.Mfs_chifs[i, 0]
             chif_mag = self.Mfs_chifs[i, 1]
 
-            fit_GP = qnm_BGP_fit(
+            fit_LS = qnmfits.multimode_ringdown_fit(
                 self.sim_main.times,
                 self.sim_main.h,
                 self.qnm_list,
-                self.Mf_ref,
-                self.chif_mag_ref,
+                Mf,
+                chif_mag,
                 t0,
-                self.tuned_param_dict_main,
-                kernel_main,
-                t0_method="geq",
                 T=self.T,
                 spherical_modes=self.spherical_modes,
-                include_chif=self.include_chif,
-                include_Mf=self.include_Mf,
             )
 
             fit_WN = qnm_BGP_fit(
@@ -213,15 +208,20 @@ class MethodPlots:
                 include_Mf=self.include_Mf,
             )
 
-            fit_LS = qnmfits.multimode_ringdown_fit(
+            fit_GP = qnm_BGP_fit(
                 self.sim_main.times,
                 self.sim_main.h,
                 self.qnm_list,
-                Mf,
-                chif_mag,
+                self.Mf_ref,
+                self.chif_mag_ref,
                 t0,
+                self.tuned_param_dict_main,
+                kernel_main,
+                t0_method="geq",
                 T=self.T,
                 spherical_modes=self.spherical_modes,
+                include_chif=self.include_chif,
+                include_Mf=self.include_Mf,
             )
 
             mm_mask = (self.sim_main_interp.times >= t0 - 1e-9) & (self.sim_main_interp.times < t0 + self.T - 1e-9)
@@ -832,16 +832,16 @@ def main():
     # Perform necessary computations
     method_plots.load_tuned_parameters()
     method_plots.compute_mf_chif()
-    #method_plots.compute_fits()
-    method_plots.get_t0_ref_fits()
+    method_plots.compute_fits()
+    #method_plots.get_t0_ref_fits()
 
     # Generate plots
     #method_plots.plot_mismatch(output_path="outputs/mismatch.pdf", show=False)
-    #method_plots.plot_amplitude(output_path="outputs/amplitude.pdf", show=False)
+    method_plots.plot_amplitude(output_path="outputs/amplitude.pdf", show=False)
     #method_plots.plot_significance(output_path="outputs/significance.pdf", show=False)
-    method_plots.plot_fundamental_kde(output_path="outputs/fundamental_kde.pdf", show=False)
-    method_plots.plot_overtone_kde(output_path="outputs/overtone_kde.pdf", show=False)
-    method_plots.plot_mass_spin_corner(output_path="outputs/mass_spin_corner.pdf", show=False)
+    #method_plots.plot_fundamental_kde(output_path="outputs/fundamental_kde.pdf", show=False)
+    #method_plots.plot_overtone_kde(output_path="outputs/overtone_kde.pdf", show=False)
+    #method_plots.plot_mass_spin_corner(output_path="outputs/mass_spin_corner.pdf", show=False)
 
 def main_iter():
     for id, T0_ref in zip(['0001', '0002', '0003', '0004'], [17, 21, 23, 26]):

@@ -591,11 +591,6 @@ def qnm_BGP_fit(
         mean_vector, covariance_matrix, allow_singular=True
         ).rvs(size=N_samples)
 
-    #log_samples = np.log(samples_abs_WN)
-    #samples_weights = np.exp(-np.sum(log_amplitudes_GP, axis=1))
-
-    #weighted_samples = samples * samples_weights[:, np.newaxis]
-
     # Get the absolute values of the amplitude and phase 
     # --------------------------------------
 
@@ -612,19 +607,30 @@ def qnm_BGP_fit(
     sample_abs_amplitudes = np.sqrt(samples_re**2 + samples_im**2)  
     sample_phases = np.arctan2(samples_im, samples_re)  
 
+    log_samples = np.log(sample_abs_amplitudes)
+    samples_weights = np.exp(-np.sum(log_samples, axis=1))
+
     percentiles = (10, 25, 50, 75, 90)
-    abs_amplitude_percentiles = np.percentile(sample_abs_amplitudes, percentiles, axis=0)
-    phases_percentiles = np.percentile(sample_phases, percentiles, axis=0)
+    quantiles = [0.1, 0.25, 0.5, 0.75, 0.9]
+    test_abs_amplitude_percentiles = np.percentile(sample_abs_amplitudes, percentiles, method='inverted_cdf', axis=0)
+    weighted_abs_amplitude_percentiles = weighted_quantile(sample_abs_amplitudes, quantiles, weights=samples_weights)
 
-    abs_amplitude_percentiles_dict = {
-        percentile: abs_amplitude_percentiles[i]
+    #phases_percentiles = np.percentile(sample_phases, percentiles, axis=0)
+
+    weighted_abs_amplitude_percentiles_dict = {
+        percentile: weighted_abs_amplitude_percentiles[i]
         for i, percentile in enumerate(percentiles)
     }
 
-    phases_percentiles_dict = {
-        percentile: phases_percentiles[i]
+    test_abs_amplitude_percentiles_dict = {
+        percentile: test_abs_amplitude_percentiles[i]
         for i, percentile in enumerate(percentiles)
     }
+
+    #phases_percentiles_dict = {
+    #    percentile: phases_percentiles[i]
+    #    for i, percentile in enumerate(percentiles)
+    #}
 
     # Get the mismatch uncertainty
     # --------------------------------------
@@ -637,9 +643,10 @@ def qnm_BGP_fit(
     best_fit = {
         "mean": mean_vector,
         "mean_abs_amplitude": abs_amplitudes,
-        "abs_amplitude_percentiles": abs_amplitude_percentiles_dict,
+        "test_abs_amplitude_percentiles": test_abs_amplitude_percentiles_dict,
+        "abs_amplitude_percentiles": weighted_abs_amplitude_percentiles_dict,
         "mean_phase": phases,
-        "phase_percentiles": phases_percentiles_dict, 
+        #"phase_percentiles": phases_percentiles_dict, 
         "covariance": covariance_matrix,    
         "fisher_matrix": fisher_matrix,
         "b_vector": b_vector,
