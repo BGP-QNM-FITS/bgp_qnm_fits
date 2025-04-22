@@ -5,7 +5,7 @@ import qnmfits
 # FILEPATH GOES HERE
 
 filepath = "/data/rvnd2-2/CCE_data/superrest_data"
-# filepath = "/Users/christophermoore/Documents/Richard/SpatialMapping/superrest_data"
+#filepath = "/Users/christophermoore/Documents/Richard/SpatialMapping/superrest_data"
 
 
 def SXS_CCE(ID, zero_time=(2, 2), lev="Lev5", radius="R2"):
