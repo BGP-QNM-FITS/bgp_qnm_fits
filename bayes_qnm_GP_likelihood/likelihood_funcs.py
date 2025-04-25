@@ -11,10 +11,10 @@ from bayes_qnm_GP_likelihood.utils import *
 from bayes_qnm_GP_likelihood.GP_funcs import *
 
 
-def domega_dchif(ell, m, n, p, Mf_0, chif_0, delta=0.01):
+def domega_dchif(mode, Mf_0, chif_0, delta=0.01):
     """Compute domega/dchif for a given QNM."""
     chifs = np.linspace(chif_0 - delta, chif_0 + delta, 11)
-    omegas = qnmfits.qnm.omega(ell, m, n, p, chifs, Mf=Mf_0)
+    omegas = qnmfits.qnm.omega_list([mode], chifs, Mf=Mf_0)[0]
     df = np.gradient(omegas, chifs)
     return df[len(chifs) // 2]
 
@@ -107,7 +107,7 @@ def chif_model_term_generator(
                     - 1j
                     * qnmfits.qnm.mu_list([mode + indices], chif_mag_0)[0]
                     * t_list
-                    * domega_dchif(l, m, n, p, Mf_0, chif_mag_0)
+                    * domega_dchif(indices, Mf_0, chif_mag_0)
                 )
             )
         lm_matrix[i] = term
@@ -359,7 +359,9 @@ def qnm_BGP_fit_lite(
         [lm_mode+mode for mode in modes] for lm_mode in spherical_modes]
     
     # Convert each tuple of indices in indices_lists to a mu value
-    mu_lists = [qnmfits.qnm.mu_list(indices, chif) for indices in indices_lists]
+
+    #for i, indices in enumerate(indices_lists):
+    #    mu_lists = [qnmfits.qnm.mu_list(indices, chif) for indices in indices_lists]
 
     # Noise covariance matrix
     # -----------

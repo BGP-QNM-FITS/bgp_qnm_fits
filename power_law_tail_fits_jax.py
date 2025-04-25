@@ -21,8 +21,9 @@ from numpyro.infer import MCMC, NUTS, ESS
 
 # Eliot's qnmfits and Richard's CCE and Bayesian codes
 import qnmfits
-from funcs.CCE import SXS_CCE
-from funcs.GP_funcs import get_inv_GP_covariance_matrix, kernel_main
+#from funcs.CCE import SXS_CCE
+#from funcs.GP_funcs import get_inv_GP_covariance_matrix, kernel_main
+from bayes_qnm_GP_likelihood import *
 
 
 def inject_tail(times, amp, t0, tau, lambda_):
@@ -817,7 +818,7 @@ class QNM_PLT_BAYES_FIT:
             
         return plt_model_matrix
     
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def plt_model_matrices(self, psi_samples):
         """
         Like self.plt_model_matrix, but vectorised over many psi values. 

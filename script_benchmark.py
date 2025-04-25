@@ -9,8 +9,10 @@ import matplotlib.pyplot as plt
 import corner
 
 import qnmfits
-from funcs.CCE import SXS_CCE
-from funcs.GP_funcs import get_inv_GP_covariance_matrix, compute_kernel_matrix, kernel_main
+#from funcs.CCE import SXS_CCE
+#from funcs.GP_funcs import get_inv_GP_covariance_matrix, compute_kernel_matrix, kernel_main
+
+from bayes_qnm_GP_likelihood import *
 
 from power_law_tail_fits_jax import QNM_PLT_BAYES_FIT, get_analysis_times, get_cov_inverse
 
@@ -23,7 +25,7 @@ if __name__=='__main__':
     id = '0001'
     t0_vals = np.arange(10.0, 50.1, 1)
 
-    with open('tuned_params.pkl', 'rb') as f:
+    with open('data/tuned_params.pkl', 'rb') as f:
         params = pickle.load(f)
     tuned_param_dict_main = params[id]
 
@@ -51,7 +53,7 @@ if __name__=='__main__':
     modes += [(2,2,n,1) for n in np.arange(0, n_max+1)]
     modes += [(3,2,n,1) for n in np.arange(0, n_max+1)]
     modes += [(4,4,n,1) for n in np.arange(0, n_max+1)]
-    modes += [(2,2,0,1,2,2,0,1)]
+    #modes += [(2,2,0,1,2,2,0,1)]
 
     t_start = time.time()
 

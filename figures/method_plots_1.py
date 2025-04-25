@@ -394,15 +394,15 @@ class MethodPlots:
             ax.plot(self.T0s, self.amplitudes_WN_percentiles[50][:, i] * C_tau, linestyle="--", color=colors[i])
             ax.fill_between(
                 self.T0s,
-                self.amplitudes_GP_percentiles[25][:, i] * C_tau,
-                self.amplitudes_GP_percentiles[75][:, i] * C_tau,
+                self.amplitudes_GP_percentiles[10][:, i] * C_tau,
+                self.amplitudes_GP_percentiles[90][:, i] * C_tau,
                 alpha=0.2,
                 color=colors[i],
             )
             ax.fill_between(
                 self.T0s,
-                self.amplitudes_WN_percentiles[25][:, i] * C_tau,
-                self.amplitudes_WN_percentiles[75][:, i] * C_tau,
+                self.amplitudes_WN_percentiles[10][:, i] * C_tau,
+                self.amplitudes_WN_percentiles[90][:, i] * C_tau,
                 alpha=0.2,
                 color=colors[i],
             )
@@ -836,9 +836,9 @@ def main():
     #method_plots.get_t0_ref_fits()
 
     # Generate plots
-    #method_plots.plot_mismatch(output_path="outputs/mismatch.pdf", show=False)
+    method_plots.plot_mismatch(output_path="outputs/mismatch.pdf", show=False)
     method_plots.plot_amplitude(output_path="outputs/amplitude.pdf", show=False)
-    #method_plots.plot_significance(output_path="outputs/significance.pdf", show=False)
+    method_plots.plot_significance(output_path="outputs/significance.pdf", show=False)
     #method_plots.plot_fundamental_kde(output_path="outputs/fundamental_kde.pdf", show=False)
     #method_plots.plot_overtone_kde(output_path="outputs/overtone_kde.pdf", show=False)
     #method_plots.plot_mass_spin_corner(output_path="outputs/mass_spin_corner.pdf", show=False)
