@@ -108,6 +108,8 @@ class BGP_fit:
         self.mean_vector = jnp.linalg.solve(self.fisher_matrix, self.b_vector) + self.ref_params 
         self.covariance_matrix = self.get_inverse(self.fisher_matrix)
 
+        self.samples = self._get_samples() 
+
     def _mask_data(self, t0_method="geq"):
         """
         Mask the data based on the specified t0_method.
@@ -414,3 +416,15 @@ class BGP_fit:
 
         return jnp.real(b_vector)
 
+
+    def _get_samples(self):
+        """
+        Generate samples from the posterior distribution of the parameters.
+
+        Returns:
+            jnp.ndarray: A 2D array of samples from the posterior distribution.
+        """
+        identity = np.eye(len(self.mean_vector))
+        return scipy.stats.multivariate_normal(
+            self.mean_vector, self.covariance_matrix, allow_singular=True
+        ).rvs(size=1000)
