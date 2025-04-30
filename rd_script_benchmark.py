@@ -41,27 +41,26 @@ if __name__=='__main__':
 
     t_start = time.time()
 
-    for t0 in t0_vals:
+    #T=150.0-t0
+    T = 150.0 
 
-        T = 150.0 - t0
-
-        fit = BGP_fit(sim.times, 
-                        sim.h, 
-                        modes, 
-                        Mf, 
-                        chif, 
-                        t0, 
-                        tuned_param_dict_main, 
-                        kernel_main, 
-                        t0_method='closest', 
-                        T=T, 
-                        spherical_modes=spherical_modes,
-                        include_chif=True,
-                        include_Mf=True)
-        
-        #samples[t0] = scipy.stats.multivariate_normal(
-        #    fit['mean'], fit['covariance'], allow_singular=True
-        #).rvs(size=1000)
+    fit = BGP_fit(sim.times, 
+                    sim.h, 
+                    modes, 
+                    Mf, 
+                    chif, 
+                    t0_vals, 
+                    tuned_param_dict_main, 
+                    kernel_main, 
+                    t0_method='closest', 
+                    T=T, 
+                    spherical_modes=spherical_modes,
+                    include_chif=True,
+                    include_Mf=True)
+    
+    #samples[t0] = scipy.stats.multivariate_normal(
+    #    fit['mean'], fit['covariance'], allow_singular=True
+    #).rvs(size=1000)
         
     t_end = time.time()
 

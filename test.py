@@ -45,29 +45,33 @@ tuned_param_dict_main = params[id]
 
 t0_vals = np.arange(10.0, 50.1, 1)
 
+start_time = time.time()
+fit = BGP_fit(sim_main.times, 
+            sim_main.h, 
+            qnm_list, 
+            Mf_0, 
+            chif_mag_0, 
+            t0_vals, 
+            tuned_param_dict_main, 
+            kernel_main, 
+            t0_method='closest', 
+            T=T, 
+            spherical_modes=spherical_modes,
+            include_chif=True,
+            include_Mf=True)
+
+
+end_time = time.time()
+qnm_bgp_fit_time = end_time - start_time
+print(f"BGP_fit execution time: {qnm_bgp_fit_time:.4f} seconds")
+
+start_time = time.time()
+
 for t0 in t0_vals:
 
-    start_time = time.time()
-
-    fit = BGP_fit(sim_main.times, 
-                sim_main.h, 
-                qnm_list, 
-                Mf_0, 
-                chif_mag_0, 
-                t0, 
-                tuned_param_dict_main, 
-                kernel_main, 
-                t0_method='closest', 
-                T=T, 
-                spherical_modes=spherical_modes,
-                include_chif=True,
-                include_Mf=True)
-    end_time = time.time()
-    bgp_fit_time = end_time - start_time
-    print(f"BGP_fit execution time: {bgp_fit_time:.4f} seconds")
+    T = 150.0 - t0
 
     # Benchmarking the speed of qnm_BGP_fit
-    start_time = time.time()
     fit_main = qnm_BGP_fit(
             sim_main.times,
             sim_main.h,
@@ -83,6 +87,7 @@ for t0 in t0_vals:
             include_chif=True,
             include_Mf=True,
         )
-    end_time = time.time()
-    qnm_bgp_fit_time = end_time - start_time
-    print(f"qnm_BGP_fit execution time: {qnm_bgp_fit_time:.4f} seconds")
+    
+end_time = time.time()
+qnm_bgp_fit_time = end_time - start_time
+print(f"qnm_BGP_fit execution time: {qnm_bgp_fit_time:.4f} seconds")

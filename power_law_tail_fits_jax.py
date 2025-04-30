@@ -773,7 +773,6 @@ class QNM_PLT_BAYES_FIT:
                 
         return jnp.array(qnm_model_matrix)
     
-    @partial(jax.jit, static_argnums=(0,))
     def plt_model_matrix(self, plt_psi_params):
         """
         Create the model matrix for the nonlinear PLT part of the model. Unlike
