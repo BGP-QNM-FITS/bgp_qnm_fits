@@ -43,7 +43,7 @@ with open(data_dir / 'bayes_qnm_GP_likelihood/data/tuned_params.pkl', 'rb') as f
 tuned_param_dict_main = params[id]
 # Benchmarking the speed of BGP_fit
 
-t0_vals = np.arange(10.0, 50.1, 1)
+t0_vals = np.arange(10.0, 100.1, 1)
 
 start_time = time.time()
 fit = BGP_fit(sim_main.times, 

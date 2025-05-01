@@ -1,14 +1,16 @@
 import numpy as np
+import jax
+import jax.numpy as jnp
 from scipy.stats import wasserstein_distance
 from bayes_qnm_GP_likelihood.utils import get_inverse
 
 def squared_exp_element(t1, t2, period):
-    dist = np.abs(t1[:, None] - t2[None, :])
-    return np.exp(-0.5 * dist**2 / period**2)
+    dist = jnp.abs(t1[:, None] - t2[None, :])
+    return jnp.exp(-0.5 * dist**2 / period**2)
 
 
 def logoneplusexp(t):
-    return np.log(1 + np.exp(-np.abs(t))) + np.maximum(t, 0)
+    return jnp.log(1 + jnp.exp(-jnp.abs(t))) + jnp.maximum(t, 0)
 
 
 def smoothclip(t, sigma_min, sigma_max, sharpness):
@@ -20,17 +22,17 @@ def smoothclip(t, sigma_min, sigma_max, sharpness):
 
 
 def softclip(t, sigma_min, sigma_max, sharpness):
-    return np.exp(
-        smoothclip(np.log(t), np.log(sigma_min), np.log(sigma_max), sharpness)
+    return jnp.exp(
+        smoothclip(jnp.log(t), jnp.log(sigma_min), jnp.log(sigma_max), sharpness)
     )
 
 
 def exponential_func(t, length_scale, t_s, sigma_max):
-    return sigma_max * np.exp(-(t - t_s) / length_scale)
+    return sigma_max * jnp.exp(-(t - t_s) / length_scale)
 
 
 def new_func(t, length_scale, t_s, sigma_min, sigma_max, sharpness):
-    t = np.asarray(t)
+    t = jnp.asarray(t)
     return softclip(
         exponential_func(t, length_scale, t_s, sigma_max),
         sigma_min,
@@ -40,12 +42,12 @@ def new_func(t, length_scale, t_s, sigma_min, sigma_max, sharpness):
 
 
 def periodic_kernel(t1, t2, length_scale, period):
-    dist = np.abs(t1[:, None] - t2[None, :])
-    return np.exp(-2 * np.sin(np.pi * dist / period) ** 2 / length_scale**2)
+    dist = jnp.abs(t1[:, None] - t2[None, :])
+    return jnp.exp(-2 * jnp.sin(np.pi * dist / period) ** 2 / length_scale**2)
 
 
 def kernel_s(analysis_times, **kwargs):
-    return kwargs["sigma_max"] ** 2 * np.eye(len(analysis_times))
+    return kwargs["sigma_max"] ** 2 * jnp.eye(len(analysis_times))
 
 
 def kernel_main(analysis_times, **kwargs):
@@ -102,8 +104,8 @@ def kernel_c(analysis_times, **kwargs):
 
 def compute_kernel_matrix(analysis_times, hyperparams, kernel):
     return (
-        kernel(np.asarray(analysis_times), **hyperparams) 
-        + np.eye(len(analysis_times)) * 1e-13
+        kernel(jnp.asarray(analysis_times), **hyperparams) 
+        + jnp.eye(len(analysis_times)) * 1e-13
     )
 
 

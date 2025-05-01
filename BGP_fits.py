@@ -51,7 +51,7 @@ class BGP_fit:
 
         # Get initial attributes
 
-        self.times = times
+        self.times = jnp.array(times)
         self.data_dict = data_dict
         self.t0s = t0
         self.t0_method = t0_method
@@ -68,6 +68,7 @@ class BGP_fit:
         self.kernel = kernel
         self.spherical_modes = spherical_modes or list(data_dict.keys())
         self.spherical_modes_length = len(self.spherical_modes)
+        self.data_array = jnp.array([data_dict[mode] for mode in self.spherical_modes])
         self.num_samples = num_samples
         self.key = jax.random.PRNGKey(int(time.time()))
 
@@ -93,6 +94,16 @@ class BGP_fit:
             ]
         ).reshape(len(self.spherical_modes), len(self.modes))
 
+
+        # Quick test to check if the kernel is diagonal
+        test_times = jnp.linspace(0, 10, 10)
+        test_kernel_matrix = jnp.array(
+            self.kernel(jnp.array(test_times), **self.kernel_param_dict[self.spherical_modes[0]])
+        )
+        self.is_GP_diagonal = jnp.allclose(
+            test_kernel_matrix, jnp.diag(jnp.diagonal(test_kernel_matrix))
+        )
+
         ### Begin t0 loop ### 
 
         if isinstance(self.t0s, (float, int)):
@@ -116,7 +127,7 @@ class BGP_fit:
             self.covariance_matrices.append(covariance_matrix)
             self.samples.append(samples)
 
-    def _mask_data(self, t0, t0_method="geq"):
+    def _mask_data(self, t0):
         """
         Mask the data based on the specified t0_method.
 
@@ -127,25 +138,11 @@ class BGP_fit:
             tuple: Masked times and data dictionary.
         """
         T = self.T - t0 # TODO: REMEMBER THIS IS THE CURRENT CONVENTION!!
-        if t0_method == "geq":
-            data_mask = (self.times >= t0 - self.epsilon) & (
-                self.times < t0 + T - self.epsilon
-            )
-            times_mask = self.times[data_mask]
-            data_dict_mask = {
-                lm: self.data_dict[lm][data_mask] for lm in self.data_dict.keys()
-            }
-        elif t0_method == "closest":
-            start_index = jnp.argmin((self.times - t0) ** 2)
-            end_index = jnp.argmin((self.times - t0 - T) ** 2)
-            times_mask = self.times[start_index:end_index]
-            data_dict_mask = {
-                lm: jnp.array(self.data_dict[lm][start_index:end_index])
-                for lm in self.data_dict.keys()
-            }
-        else:
-            raise ValueError("Invalid t0_method. Choose between 'geq' and 'closest'.")
-        return jnp.array(times_mask), data_dict_mask
+        start_index = jnp.argmin((self.times - t0) ** 2)
+        end_index = jnp.argmin((self.times - t0 - T) ** 2)
+        times_mask = self.times[start_index:end_index]
+        data_array_mask = self.data_array[:, start_index:end_index]
+        return jnp.array(times_mask), data_array_mask
 
     def _get_params(self):
         """
@@ -239,7 +236,6 @@ class BGP_fit:
 
         return C_0, ref_params
 
-    @partial(jax.jit, static_argnames=["self"])
     def get_inverse(self, matrix, epsilon=1e-10):
         vals, vecs = jnp.linalg.eigh(matrix)
         vals = jnp.maximum(vals, epsilon)
@@ -247,10 +243,11 @@ class BGP_fit:
 
     def compute_kernel_matrix(self, hyperparams, analysis_times):
         return jnp.array(
-            self.kernel(np.array(analysis_times), **hyperparams)
-            + np.eye(len(analysis_times)) * 1e-13
+            self.kernel(jnp.array(analysis_times), **hyperparams)
+            + jnp.eye(len(analysis_times)) * 1e-13
         )
-
+    
+    @partial(jax.jit, static_argnames=["self"])
     def get_inverse_noise_covariance_matrix(self, analysis_times):
         return jnp.array(
             [
@@ -283,97 +280,73 @@ class BGP_fit:
         mu_minus = self._get_mixing(mode, sph_mode, chif=self.chif - delta)
         return (mu_plus - mu_minus) / (2 * delta)
 
-    def re_amplitude_model_term_generator(self, exponential_terms, i):
+    def re_amplitude_model_term_generator(self, exponential_terms):
         """Computes the real part of the amplitude model term for a given set of QNMs. Returns a
         len(spherical_modes) x len(t_list) array."""
-        return jnp.array(
-            [
-                exponential_terms[i] * self.mixing_coefficients[j, i]
-                for j in range(self.spherical_modes_length)
-            ]
+        return jnp.einsum(
+        "pt,sp->pst", exponential_terms, self.mixing_coefficients
         )
 
     def im_amplitude_model_term_generator(self, exponential_terms, i):
         """Computes the imaginary part of the amplitude model term for a given set of QNMs. Returns a
         len(spherical_modes) x len(t_list) array."""
-        return jnp.array(
-            [
-                1j * exponential_terms[i] * self.mixing_coefficients[j, i]
-                for j in range(self.spherical_modes_length)
-            ]
+        return jnp.einsum(
+        "pt,sp->pst", exponential_terms, self.mixing_coefficients
         )
 
     def mass_model_term_generator(self, analysis_times, ls_amplitudes, exponential_terms):
         """Computes the Mf term for a given set of QNMs. Returns a len(spherical_modes) x len(t_list)
         array."""
-        lm_matrix = jnp.einsum(
+        return jnp.einsum(
             "p,sp,pt->st",
             1j * self.frequencies / self.Mf * ls_amplitudes,
             self.mixing_coefficients,
             exponential_terms * analysis_times,
         )
-        return lm_matrix
 
     def chif_model_term_generator(self, analysis_times, ls_amplitudes, exponential_terms):
         """Computes the chif_mag term for a given set of QNMs. Returns a len(spherical_modes) x
         len(t_list) array."""
-        # TODO: may be a way to properly vectorise this?
-        lm_matrix = jnp.zeros(
-            (self.spherical_modes_length, len(analysis_times)), dtype=complex
+        return jnp.einsum(
+            "p,pt,spt->st",
+            ls_amplitudes,
+            exponential_terms,
+            self.mixing_derivatives[:, :, None]
+            - 1j * self.mixing_coefficients[:, :, None] * analysis_times[None, None, :]
+            * self.frequency_derivatives[None, :, None]
         )
-        for j in range(self.spherical_modes_length):
-            term = jnp.zeros(len(analysis_times), dtype=complex)
-            for i in range(self.modes_length):
-                term += (
-                    ls_amplitudes[i]
-                    * exponential_terms[i]
-                    * (
-                        self.mixing_derivatives[j, i]
-                        - 1j
-                        * self.mixing_coefficients[j, i]
-                        * analysis_times
-                        * self.frequency_derivatives[i]
-                    )
-                )
-            lm_matrix = lm_matrix.at[j].set(term)
-        return lm_matrix
 
     def const_model_term_generator(self, analysis_times, ls_amplitudes, exponential_terms):
         """Computes the H_* term for a given set of QNMs."""
-        lm_matrix = jnp.zeros(
-            (self.spherical_modes_length, len(analysis_times)), dtype=complex
+        return jnp.einsum(
+            "p,sp,pt->st",
+            ls_amplitudes,
+            self.mixing_coefficients,
+            exponential_terms
         )
-        for j in range(self.spherical_modes_length):
-            lm_matrix = lm_matrix.at[j].set(
-                sum(
-                    ls_amplitudes[i]
-                    * self.mixing_coefficients[j, i]
-                    * exponential_terms[i]
-                    for i in range(self.modes_length)
-                )
-            )
-        return lm_matrix
     
+    @partial(jax.jit, static_argnames=["self"])
     def get_model_terms(self, analysis_times, ls_amplitudes, exponential_terms):
         sph_matrix = jnp.zeros(
             (self.params_length, self.spherical_modes_length, len(analysis_times)),
             dtype=jnp.complex128,
         )
 
-        for i in range(self.modes_length):
-            model_term = self.re_amplitude_model_term_generator(exponential_terms, i)
-            sph_matrix = sph_matrix.at[2 * i].set(model_term)
-            sph_matrix = sph_matrix.at[2 * i + 1].set(1j * model_term)
+        re_model_terms = self.re_amplitude_model_term_generator(exponential_terms)
+        sph_matrix = sph_matrix.at[: 2 * self.modes_length : 2].set(re_model_terms)
+        sph_matrix = sph_matrix.at[1 : 2 * self.modes_length : 2].set(1j * re_model_terms)
 
         if self.include_chif:
             sph_matrix = sph_matrix.at[-1 if not self.include_Mf else -2].set(
-                self.chif_model_term_generator(analysis_times, ls_amplitudes, exponential_terms)
+            self.chif_model_term_generator(analysis_times, ls_amplitudes, exponential_terms)
             )
+
         if self.include_Mf:
-            sph_matrix = sph_matrix.at[-1].set(self.mass_model_term_generator(analysis_times, ls_amplitudes, exponential_terms))
+            sph_matrix = sph_matrix.at[-1].set(
+            self.mass_model_term_generator(analysis_times, ls_amplitudes, exponential_terms)
+            )
 
         return sph_matrix
-    
 
     def get_fisher_matrix(self, analysis_times, model_terms, inverse_noise_covariance_matrix):
         """
@@ -386,16 +359,13 @@ class BGP_fit:
             between the i-th and j-th parameters.
         """
 
-        # fisher_matrix = jnp.zeros((params_length, params_length), dtype=jnp.float64)
-        matrix1 = jnp.conj(model_terms)
-        matrix2 = model_terms
         if self.is_GP_diagonal:
             # Use the diagonal version of get_element
             fisher_matrix = (
                 jnp.einsum(
                     "pst,qsu,stu->pq",
-                    matrix1,
-                    matrix2,
+                    jnp.conj(model_terms),
+                    model_terms,
                     inverse_noise_covariance_matrix,
                 )
                 * (analysis_times[-1] - analysis_times[0])
@@ -405,8 +375,8 @@ class BGP_fit:
             # Use the general version of get_element
             fisher_matrix = jnp.einsum(
                 "pst,qsu,stu->pq",
-                matrix1,
-                matrix2,
+                jnp.conj(model_terms),
+                model_terms,
                 inverse_noise_covariance_matrix,
             )
 
@@ -448,7 +418,31 @@ class BGP_fit:
             )
 
         return jnp.real(b_vector)
+    
 
+    def _get_fit_at_t0(self, t0):
+        analysis_times, masked_data_array = self._mask_data(t0)
+        model_term = analysis_times - t0
+        exponential_terms = self._get_exponential_terms(model_term)
+        ls_amplitudes, ref_params = self._get_ls_amplitudes(t0)
+
+        #### Begin BGP fitting ####
+
+        # Get inverse noise covariance matrix
+        inverse_noise_covariance_matrix = (
+            self.get_inverse_noise_covariance_matrix(analysis_times)
+        )
+        model_terms = self.get_model_terms(model_term, ls_amplitudes, exponential_terms)
+        fisher_matrix = self.get_fisher_matrix(model_term, model_terms, inverse_noise_covariance_matrix)
+        b_vector = self.get_b_vector(masked_data_array, ls_amplitudes, exponential_terms, model_term, model_terms, inverse_noise_covariance_matrix)
+        mean_vector = (
+            jnp.linalg.solve(fisher_matrix, b_vector) + ref_params
+        )
+        covariance_matrix = self.get_inverse(fisher_matrix)
+        samples, key = self._get_samples(mean_vector, covariance_matrix)
+
+        return fisher_matrix, b_vector, mean_vector, covariance_matrix, samples
+    
 
     def _get_samples(self, mean_vector, covariance_matrix):
         """
@@ -467,37 +461,3 @@ class BGP_fit:
             ),
             key,
         )
-
-    def _get_fit_at_t0(self, t0):
-        analysis_times, self.masked_data_dict = self._mask_data(t0, self.t0_method)
-        data_array = jnp.array(
-            [self.masked_data_dict[mode] for mode in self.spherical_modes]
-        )
-        model_term = analysis_times - t0 # TODO: Is this actually necessary?  
-
-        exponential_terms = self._get_exponential_terms(model_term)
-        ls_amplitudes, ref_params = self._get_ls_amplitudes(t0)
-
-        #### Begin BGP fitting ####
-
-        # Get inverse noise covariance matrix
-        inverse_noise_covariance_matrix = (
-            self.get_inverse_noise_covariance_matrix(analysis_times)
-        )
-
-        # TODO make this more robust
-        self.is_GP_diagonal = jnp.allclose(
-            inverse_noise_covariance_matrix[0],
-            jnp.diag(jnp.diagonal(inverse_noise_covariance_matrix[0])),
-        )
-
-        model_terms = self.get_model_terms(model_term, ls_amplitudes, exponential_terms)
-        fisher_matrix = self.get_fisher_matrix(model_term, model_terms, inverse_noise_covariance_matrix)
-        b_vector = self.get_b_vector(data_array, ls_amplitudes, exponential_terms, model_term, model_terms, inverse_noise_covariance_matrix)
-        mean_vector = (
-            jnp.linalg.solve(fisher_matrix, b_vector) + ref_params
-        )
-        covariance_matrix = self.get_inverse(fisher_matrix)
-        samples = self._get_samples(mean_vector, covariance_matrix)
-
-        return fisher_matrix, b_vector, mean_vector, covariance_matrix, samples 
