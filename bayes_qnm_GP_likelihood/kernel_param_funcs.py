@@ -1,3 +1,9 @@
+"""
+
+This file contains the functions to obtain and train the parameters of the GP. 
+
+"""
+
 import numpy as np
 import scipy 
 import pickle 

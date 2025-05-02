@@ -1,8 +1,9 @@
-"""This module contains functions for computing the Fisher matrix and b vector for a given set of
+"""
+This module contains functions for computing the Fisher matrix and b vector for a given set of
 QNMs and spherical modes.
 
-It also includes functions for marginalising over parameters and computing the significance of
-parameters.
+It has now been superseded by the BGP_fits class and is only used for testing purposes.
+
 """
 
 import numpy as np
@@ -616,6 +617,7 @@ def qnm_BGP_fit(
     quantiles = [0.1, 0.25, 0.5, 0.75, 0.9]
     test_abs_amplitude_percentiles = np.percentile(sample_abs_amplitudes, percentiles, method='inverted_cdf', axis=0)
     weighted_abs_amplitude_percentiles = weighted_quantile(sample_abs_amplitudes, quantiles, weights=samples_weights)
+    unweighted_quantiles = weighted_quantile(sample_abs_amplitudes, quantiles, weights=None)
 
     #phases_percentiles = np.percentile(sample_phases, percentiles, axis=0)
 
@@ -629,6 +631,11 @@ def qnm_BGP_fit(
         for i, percentile in enumerate(percentiles)
     }
 
+    unweighted_quantiles_dict = {
+        percentile: unweighted_quantiles[i]
+        for i, percentile in enumerate(percentiles)
+    }
+
     #phases_percentiles_dict = {
     #    percentile: phases_percentiles[i]
     #    for i, percentile in enumerate(percentiles)
@@ -638,8 +645,10 @@ def qnm_BGP_fit(
     # --------------------------------------
 
     model_dict = get_model(mean_vector, modes, times_mask, t0, mu_lists, frequencies, spherical_modes)
-    unweighed_mm = unweighted_mismatch(model_dict, data_dict_mask)
-    weighted_mm = weighted_mismatch(model_dict, data_dict_mask, inv_noise_covariance_matrix)
+    model_array = np.array([model_dict[key] for key in model_dict.keys()])
+    data_array = np.array([data_dict_mask[key] for key in data_dict_mask.keys()])
+    unweighed_mm = unweighted_mismatch(model_array, data_array)
+    weighted_mm = weighted_mismatch(model_array, data_array, inv_noise_covariance_matrix)
 
     # Store all useful information to a output dictionary
     best_fit = {
@@ -647,6 +656,8 @@ def qnm_BGP_fit(
         "mean_abs_amplitude": abs_amplitudes,
         "test_abs_amplitude_percentiles": test_abs_amplitude_percentiles_dict,
         "abs_amplitude_percentiles": weighted_abs_amplitude_percentiles_dict,
+        "unweighted_quantiles": unweighted_quantiles_dict,
+        "samples_weights": samples_weights,
         "mean_phase": phases,
         #"phase_percentiles": phases_percentiles_dict, 
         "covariance": covariance_matrix,    

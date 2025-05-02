@@ -1,7 +1,5 @@
 import qnmfits
 import numpy as np
-import scipy
-import corner
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -14,20 +12,24 @@ sys.path.append(str(notebook_dir.parent))
 from matplotlib.colors import to_hex
 from matplotlib.lines import Line2D
 from matplotlib.colors import LinearSegmentedColormap
-from qnmfits.spatial_mapping_functions import * 
 from bayes_qnm_GP_likelihood import *
+from bayes_qnm_GP_likelihood.BGP_fits import BGP_fit
+
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from plot_config import PlotConfig
 
 script_dir = Path(__file__).resolve().parent
 data_dir = script_dir.parent / "data"
 
+
 class MethodPlots:
 
     config = PlotConfig()
     config.apply_style()
 
-    def __init__(self, id, N_MAX=7, T=100, T0_REF=17, include_Mf=True, include_chif=True):
+    def __init__(
+        self, id, N_MAX=7, T=100, T0_REF=17, include_Mf=True, include_chif=True
+    ):
         self.id = id
         self.N_MAX = N_MAX
         self.T = T
@@ -50,15 +52,16 @@ class MethodPlots:
 
         self.T0s = np.linspace(-25, 100, 65)
 
-        #self._initialize_results()
+        self._initialize_results()
 
         colors = self.config.colors
-        self.custom_colormap = LinearSegmentedColormap.from_list('custom_colormap', colors)
-        self.fundamental_color_WN = to_hex('#395470')
-        self.fundamental_color_GP = to_hex('#395471')
-        self.overtone_color_WN = to_hex('#65858c')
-        self.overtone_color_GP = to_hex('#65858d')
-
+        self.custom_colormap = LinearSegmentedColormap.from_list(
+            "custom_colormap", colors
+        )
+        self.fundamental_color_WN = to_hex("#395470")
+        self.fundamental_color_GP = to_hex("#395471")
+        self.overtone_color_WN = to_hex("#65858c")
+        self.overtone_color_GP = to_hex("#65858d")
 
     def _align_waveforms(self):
         """
@@ -71,7 +74,6 @@ class MethodPlots:
         new_times = np.arange(self.sim_main.times[0], self.sim_main.times[-1], 0.1)
         self.sim_main_interp = sim_interpolator(self.sim_main, new_times)
         self.sim_lower_interp = sim_interpolator(self.sim_lower, new_times)
-
 
     def _initialize_results(self):
         """
@@ -92,36 +94,47 @@ class MethodPlots:
         self.unweighted_mismatches_noise = np.zeros(num_T0s)
         self.weighted_mismatches_noise = np.zeros(num_T0s)
 
+        self.log_likelihood_WN = np.zeros(num_T0s)
+        self.log_likelihood_GP = np.zeros(num_T0s)
+
         self.amplitudes_LS = np.zeros((num_T0s, num_modes))
 
         self.amplitudes_WN = np.zeros((num_T0s, num_modes))
         self.amplitudes_GP = np.zeros((num_T0s, num_modes))
 
-        self.amplitudes_WN_percentiles = {p: np.zeros((num_T0s, num_modes)) for p in [10, 25, 50, 75, 90]}
-        self.amplitudes_GP_percentiles = {p: np.zeros((num_T0s, num_modes)) for p in [10, 25, 50, 75, 90]}
+        self.amplitudes_WN_percentiles = {
+            p: np.zeros((num_T0s, num_modes)) for p in [0.1, 0.25, 0.5, 0.75, 0.9]
+        }
+        self.amplitudes_GP_percentiles = {
+            p: np.zeros((num_T0s, num_modes)) for p in [0.1, 0.25, 0.5, 0.75, 0.9]
+        }
 
         self.significances_WN = np.zeros((num_T0s, num_modes))
         self.significances_GP = np.zeros((num_T0s, num_modes))
-
 
     def load_tuned_parameters(self):
         """
         Load tuned kernel parameters for GP and WN fits.
         """
-        with open(data_dir / 'tuned_params.pkl', 'rb') as f:
+        with open(data_dir / "tuned_params.pkl", "rb") as f:
             params = pickle.load(f)
         self.tuned_param_dict_main = params[self.id]
 
-        with open(data_dir / 'param_dict_sim_lm_full.pkl', 'rb') as f:
+        with open(data_dir / "param_dict_sim_lm_full.pkl", "rb") as f:
             param_dict_sim_lm = pickle.load(f)
 
-        tuning_hyperparams_s = [0.29245605468749936] # This value was determined in get_kernel_params_alt.ipynb
+        tuning_hyperparams_s = [
+            0.29245605468749936
+        ]  # This value was determined in get_kernel_params_alt.ipynb
         hyperparam_rule_dict_s = {"sigma_max": "multiply"}
         self.tuned_param_dict_wn = {
-            mode: get_new_params(param_dict_sim_lm[self.id][mode], tuning_hyperparams_s, hyperparam_rule_dict_s)
+            mode: get_new_params(
+                param_dict_sim_lm[self.id][mode],
+                tuning_hyperparams_s,
+                hyperparam_rule_dict_s,
+            )
             for mode in param_dict_sim_lm[self.id]
         }
-
 
     def compute_mf_chif(self):
         """
@@ -143,7 +156,7 @@ class MethodPlots:
         )
 
         self.Mf_t0 = result.x[0]
-        self.chif_t0 = result.x[1] 
+        self.chif_t0 = result.x[1]
 
         self.Mfs_chifs = np.zeros((len(self.T0s), 2))
 
@@ -159,27 +172,42 @@ class MethodPlots:
             self.Mfs_chifs[i] = result.x
             initial_params = result.x
 
-
     def _mf_chif_mismatch(self, Mf_chif_mag_list, t0, T, spherical_modes):
         """
         Compute the mismatch for given mass and spin parameters.
         """
         Mf, chif_mag = Mf_chif_mag_list
         best_fit = qnmfits.multimode_ringdown_fit(
-            self.sim_main.times, self.sim_main.h, self.qnm_list, Mf, chif_mag, t0, t0_method="closest", T=T, spherical_modes=spherical_modes
+            self.sim_main.times,
+            self.sim_main.h,
+            self.qnm_list,
+            Mf,
+            chif_mag,
+            t0,
+            t0_method="closest",
+            T=T,
+            spherical_modes=spherical_modes,
         )
         return best_fit["mismatch"]
 
-
-    def compute_fits(self):
+    def _compute_LS_fits(self):
         """
         Compute GP, WN, and LS fits for each t0 and store results.
         """
-        for i, t0 in enumerate(self.T0s):
-            print(f"t0 = {t0}")
 
-            Mf = self.Mfs_chifs[i, 0]
-            chif_mag = self.Mfs_chifs[i, 1]
+        fits_LS = []
+        main_data_masked = []
+        lower_data_masked = []
+
+        for i, t0 in enumerate(self.T0s):
+
+            Mf = self.Mf_ref
+            chif_mag = self.chif_mag_ref
+
+            if self.include_Mf:
+                Mf = self.Mfs_chifs[i, 0]
+            if self.include_chif:
+                chif_mag = self.Mfs_chifs[i, 1]
 
             fit_LS = qnmfits.multimode_ringdown_fit(
                 self.sim_main.times,
@@ -192,77 +220,135 @@ class MethodPlots:
                 spherical_modes=self.spherical_modes,
             )
 
-            fit_WN = qnm_BGP_fit(
-                self.sim_main.times,
-                self.sim_main.h,
-                self.qnm_list,
-                self.Mf_ref,
-                self.chif_mag_ref,
-                t0,
-                self.tuned_param_dict_wn,
-                kernel_s,
-                t0_method="geq",
-                T=self.T,
-                spherical_modes=self.spherical_modes,
-                include_chif=self.include_chif,
-                include_Mf=self.include_Mf,
+            fits_LS.append(fit_LS)
+
+            mm_mask = (self.sim_main_interp.times >= t0 - 1e-9) & (
+                self.sim_main_interp.times < t0 + self.T - 1e-9
             )
+            main_data = np.array([self.sim_main_interp.h[(2, 2)][mm_mask]])
+            lower_data = np.array([self.sim_lower_interp.h[(2, 2)][mm_mask]])
 
-            fit_GP = qnm_BGP_fit(
-                self.sim_main.times,
-                self.sim_main.h,
-                self.qnm_list,
-                self.Mf_ref,
-                self.chif_mag_ref,
-                t0,
-                self.tuned_param_dict_main,
-                kernel_main,
-                t0_method="geq",
-                T=self.T,
-                spherical_modes=self.spherical_modes,
-                include_chif=self.include_chif,
-                include_Mf=self.include_Mf,
-            )
+            main_data_masked.append(main_data)
+            lower_data_masked.append(lower_data)
 
-            mm_mask = (self.sim_main_interp.times >= t0 - 1e-9) & (self.sim_main_interp.times < t0 + self.T - 1e-9)
-            mm_times = self.sim_main_interp.times[mm_mask]
-            main_data = {(2, 2): self.sim_main_interp.h[(2, 2)][mm_mask]}
-            lower_data = {(2, 2): self.sim_lower_interp.h[(2, 2)][mm_mask]}
+        return fits_LS, main_data_masked, lower_data_masked
 
-            # Store results (mismatches, amplitudes, significance, etc.)
-            self._store_results(i, fit_GP, fit_WN, fit_LS, main_data, lower_data, t0)
+    def compute_quantities(self):
 
+        fits_LS, main_data_masked, lower_data_masked = self._compute_LS_fits()
 
-    def _store_results(self, i, fit_GP, fit_WN, fit_LS, main_data, lower_data, t0):
+        fits_WN = BGP_fit(
+            self.sim_main.times,
+            self.sim_main.h,
+            self.qnm_list,
+            self.Mf_ref,
+            self.chif_mag_ref,
+            self.T0s,
+            self.tuned_param_dict_wn,
+            kernel_s,
+            t0_method="closest",
+            T=self.T,
+            spherical_modes=self.spherical_modes,
+            include_chif=self.include_chif,
+            include_Mf=self.include_Mf,
+        )
+
+        fits_GP = BGP_fit(
+            self.sim_main.times,
+            self.sim_main.h,
+            self.qnm_list,
+            self.Mf_ref,
+            self.chif_mag_ref,
+            self.T0s,
+            self.tuned_param_dict_main,
+            kernel_main,
+            t0_method="closest",
+            T=self.T,
+            spherical_modes=self.spherical_modes,
+            include_chif=self.include_chif,
+            include_Mf=self.include_Mf,
+        )
+
+        self._store_results(
+            fits_GP.fits, fits_WN.fits, fits_LS, main_data_masked, lower_data_masked
+        )
+
+    def _store_results(self, fit_GP, fit_WN, fit_LS, main_data, lower_data):
         """
         Store results for mismatches, amplitudes, and significance for a given t0.
         """
-        # Mismatches
-        self.unweighted_mismatches_LS[i] = unweighted_mismatch(fit_LS["model"], fit_LS["data"])
-        self.weighted_mismatches_LS[i] = weighted_mismatch(fit_LS["model"], fit_LS["data"], fit_GP["inv_noise_covariance"])
 
-        self.unweighted_mismatches_WN[i] = unweighted_mismatch(fit_WN["model"], fit_WN["data"])
-        self.weighted_mismatches_WN[i] = weighted_mismatch(fit_WN["model"], fit_WN["data"], fit_GP["inv_noise_covariance"])
+        for i, t0 in enumerate(self.T0s):
+            # Mismatches
 
-        self.unweighted_mismatches_GP[i] = unweighted_mismatch(fit_GP["model"], fit_GP["data"])
-        self.weighted_mismatches_GP[i] = weighted_mismatch(fit_GP["model"], fit_GP["data"], fit_GP["inv_noise_covariance"])
+            model_array_LS = np.array(
+                [fit_LS[i]["model"][key] for key in fit_LS[i]["model"].keys()]
+            )
+            data_array_LS = np.array(
+                [fit_LS[i]["data"][key] for key in fit_LS[i]["data"].keys()]
+            )
 
-        self.unweighted_mismatches_noise[i] = unweighted_mismatch(main_data, lower_data)
-        self.weighted_mismatches_noise[i] = weighted_mismatch(main_data, lower_data, fit_GP['inv_noise_covariance'])
+            self.unweighted_mismatches_LS[i] = mismatch(
+                model_array_LS, data_array_LS
+            )
+            self.weighted_mismatches_LS[i] = mismatch(
+                model_array_LS, data_array_LS, fit_GP[i]["inv_noise_covariance"]
+            )
 
-        # Amplitudes
-        self.amplitudes_LS[i, :] = np.abs(fit_LS["C"])
-        self.amplitudes_WN[i, :] = fit_WN["mean_abs_amplitude"]
-        self.amplitudes_GP[i, :] = fit_GP["mean_abs_amplitude"]
+            self.unweighted_mismatches_WN[i] = mismatch(
+                fit_WN[i]["model_array"], fit_WN[i]["data_array_masked"]
+            )
+            self.weighted_mismatches_WN[i] = mismatch(
+                fit_WN[i]["model_array"],
+                fit_WN[i]["data_array_masked"],
+                fit_GP[i]["inv_noise_covariance"],
+            )
 
-        for p in [10, 25, 50, 75, 90]:
-            self.amplitudes_WN_percentiles[p][i, :] = fit_WN["abs_amplitude_percentiles"][p]
-            self.amplitudes_GP_percentiles[p][i, :] = fit_GP["abs_amplitude_percentiles"][p]
+            self.unweighted_mismatches_GP[i] = mismatch(
+                fit_GP[i]["model_array"], fit_GP[i]["data_array_masked"]
+            )
+            self.weighted_mismatches_GP[i] = mismatch(
+                fit_GP[i]["model_array"],
+                fit_GP[i]["data_array_masked"],
+                fit_GP[i]["inv_noise_covariance"],
+            )
 
-        # Significance
-        self.significances_WN[i, :] = get_significance_list(self.qnm_list, fit_WN["mean"], fit_WN["fisher_matrix"])
-        self.significances_GP[i, :] = get_significance_list(self.qnm_list, fit_GP["mean"], fit_GP["fisher_matrix"])
+            self.unweighted_mismatches_noise[i] = mismatch(
+                main_data[i], lower_data[i]
+            )
+            self.weighted_mismatches_noise[i] = mismatch(
+                main_data[i], lower_data[i], fit_GP[i]["inv_noise_covariance"]
+            )
 
+            # Log likelihood 
+
+            self.log_likelihood_WN[i] = -log_likelihood(fit_WN[i]["data_array_masked"], fit_WN[i]["model_array"], fit_GP[i]["inv_noise_covariance"])
+            self.log_likelihood_GP[i] = -log_likelihood(fit_GP[i]["data_array_masked"], fit_GP[i]["model_array"], fit_GP[i]["inv_noise_covariance"])
+
+            # Amplitudes
+            self.amplitudes_LS[i, :] = np.abs(fit_LS[i]["C"])
+            self.amplitudes_WN[i, :] = fit_WN[i]["mean_amplitude"]
+            self.amplitudes_GP[i, :] = fit_GP[i]["mean_amplitude"]
+
+            for p in [0.1, 0.25, 0.5, 0.75, 0.9]:
+                self.amplitudes_WN_percentiles[p][i, :] = fit_WN[i][
+                    "weighted_quantiles"
+                ][p]
+                self.amplitudes_GP_percentiles[p][i, :] = fit_GP[i][
+                    "weighted_quantiles"
+                ][p]
+
+            # Significance
+            self.significances_WN[i, :] = get_significance_list(
+                self.qnm_list,
+                np.array(fit_WN[i]["mean"]),
+                np.array(fit_WN[i]["fisher_matrix"]),
+            )
+            self.significances_GP[i, :] = get_significance_list(
+                self.qnm_list,
+                np.array(fit_GP[i]["mean"]),
+                np.array(fit_GP[i]["fisher_matrix"]),
+            )
 
     def get_t0_ref_fits(self):
         """
@@ -280,7 +366,7 @@ class MethodPlots:
             spherical_modes=self.spherical_modes,
         )
 
-        ref_fit_WN = qnm_BGP_fit(
+        ref_fit_WN = BGP_fit(
             self.sim_main.times,
             self.sim_main.h,
             self.qnm_list,
@@ -296,7 +382,7 @@ class MethodPlots:
             include_Mf=self.include_Mf,
         )
 
-        ref_fit_GP = qnm_BGP_fit(
+        ref_fit_GP = BGP_fit(
             self.sim_main.times,
             self.sim_main.h,
             self.qnm_list,
@@ -317,47 +403,36 @@ class MethodPlots:
             self.ref_params.append(re_c)
             self.ref_params.append(im_c)
 
-        self.ref_samples_WN  = scipy.stats.multivariate_normal(
-            ref_fit_WN['mean'], ref_fit_WN['covariance'], allow_singular=True
-        ).rvs(size=10000)
+        self.ref_samples_WN = ref_fit_WN.fits[0]["samples"]
+        self.ref_samples_GP = ref_fit_GP.fits[0]["samples"]
+        self.samples_abs_WN = ref_fit_WN.fits[0]["sample_amplitudes"]
+        self.samples_abs_GP = ref_fit_GP.fits[0]["sample_amplitudes"]
+        self.samples_weights_WN = ref_fit_WN.fits[0]["samples_weights"]
+        self.samples_weights_GP = ref_fit_GP.fits[0]["samples_weights"]
 
-        self.ref_samples_GP = scipy.stats.multivariate_normal(
-            ref_fit_GP['mean'], ref_fit_GP['covariance'], allow_singular=True
-        ).rvs(size=10000)
-
-        num_amplitude_params = len(self.qnm_list) * 2
-
-        samples_re_WN = self.ref_samples_WN[:, :num_amplitude_params:2]
-        samples_im_WN = self.ref_samples_WN[:, 1:num_amplitude_params:2]
-        self.samples_abs_WN = np.sqrt(samples_re_WN**2 + samples_im_WN**2)
-
-        samples_re_GP = self.ref_samples_GP[:, :num_amplitude_params:2]  
-        samples_im_GP = self.ref_samples_GP[:, 1:num_amplitude_params:2]  
-        self.samples_abs_GP = np.sqrt(samples_re_GP**2 + samples_im_GP**2)  
-
-        log_amplitudes_WN = np.log(self.samples_abs_WN)
-        self.samples_weights_WN = np.exp(-np.sum(log_amplitudes_WN, axis=1))
-
-        log_amplitudes_GP = np.log(self.samples_abs_GP)
-        self.samples_weights_GP = np.exp(-np.sum(log_amplitudes_GP, axis=1))
-
-        self.param_list = [qnm for qnm in self.qnm_list for _ in range(2)] + ["chif"] + ["Mf"]  
-
+        self.param_list = (
+            [qnm for qnm in self.qnm_list for _ in range(2)] + ["chif"] + ["Mf"]
+        )
 
     def plot_mismatch(self, output_path="outputs/mismatch_plot.pdf", show=False):
         """
         Generate the mismatch plot and save it to the specified path.
         """
         fig, (ax1, ax2) = plt.subplots(
-            2, 1, figsize=(self.config.fig_width, self.config.fig_height * 1.7),
-            sharex=True, gridspec_kw={"hspace": 0}
+            2,
+            1,
+            figsize=(self.config.fig_width, self.config.fig_height * 1.7),
+            sharex=True,
+            gridspec_kw={"hspace": 0},
         )
 
         # Plot weighted mismatches
         ax1.axvline(self.T0_REF, color="k", alpha=0.3, lw=1)
         ax1.plot(self.T0s, self.weighted_mismatches_GP, label="GP", color="k")
         ax1.plot(self.T0s, self.weighted_mismatches_WN, label="WN", ls="--", color="k")
-        ax1.fill_between(self.T0s, 0, self.weighted_mismatches_noise, color="grey", alpha=0.5)
+        ax1.fill_between(
+            self.T0s, 0, self.weighted_mismatches_noise, color="grey", alpha=0.5
+        )
         ax1.set_xlim(self.T0s[0], self.T0s[-1])
         ax1.set_ylabel(r"$\mathcal{M}^{22}_K$")
         ax1.set_yscale("log")
@@ -366,8 +441,12 @@ class MethodPlots:
         # Plot unweighted mismatches
         ax2.axvline(self.T0_REF, color="k", alpha=0.3, lw=1)
         ax2.plot(self.T0s, self.unweighted_mismatches_GP, label="GP", color="k")
-        ax2.plot(self.T0s, self.unweighted_mismatches_WN, label="WN", ls="--", color="k")
-        ax2.fill_between(self.T0s, 0, self.unweighted_mismatches_noise, color="grey", alpha=0.5)
+        ax2.plot(
+            self.T0s, self.unweighted_mismatches_WN, label="WN", ls="--", color="k"
+        )
+        ax2.fill_between(
+            self.T0s, 0, self.unweighted_mismatches_noise, color="grey", alpha=0.5
+        )
         ax2.set_xlim(self.T0s[0], self.T0s[-1])
         ax2.set_xlabel("$t_0 \ [M]$")
         ax2.set_ylabel(r"$\mathcal{M}^{22}$")
@@ -381,28 +460,85 @@ class MethodPlots:
             plt.show()
         plt.close(fig)
 
+    def plot_log_likelihood(self, output_path="outputs/log_likelihood_mismatch_plot.pdf", show=False):
+        """
+        Generate the mismatch plot and save it to the specified path.
+        """
+        fig, (ax1, ax2) = plt.subplots(
+            2,
+            1,
+            figsize=(self.config.fig_width, self.config.fig_height * 1.7),
+            sharex=True,
+            gridspec_kw={"hspace": 0},
+        )
+
+        # Plot weighted mismatches
+        ax1.axvline(self.T0_REF, color="k", alpha=0.3, lw=1)
+        ax1.plot(self.T0s, self.log_likelihood_GP, label="GP", color="k")
+        ax1.plot(self.T0s, self.log_likelihood_WN, label="WN", ls="--", color="k")
+        ax1.fill_between(
+            self.T0s, 0, self.weighted_mismatches_noise, color="grey", alpha=0.5
+        )
+        ax1.set_xlim(self.T0s[0], self.T0s[-1])
+        ax1.set_ylabel(r"$\mathcal{M}^{22}_K$")
+        ax1.set_yscale("log")
+        ax1.legend(frameon=False, loc="upper right", labelspacing=0.1)
+
+        # Plot unweighted mismatches
+        ax2.axvline(self.T0_REF, color="k", alpha=0.3, lw=1)
+        ax2.plot(self.T0s, self.unweighted_mismatches_GP, label="GP", color="k")
+        ax2.plot(
+            self.T0s, self.unweighted_mismatches_WN, label="WN", ls="--", color="k"
+        )
+        ax2.fill_between(
+            self.T0s, 0, self.unweighted_mismatches_noise, color="grey", alpha=0.5
+        )
+        ax2.set_xlim(self.T0s[0], self.T0s[-1])
+        ax2.set_xlabel("$t_0 \ [M]$")
+        ax2.set_ylabel(r"$\mathcal{M}^{22}$")
+        ax2.set_yscale("log")
+        ax2.legend(frameon=False, loc="upper right", labelspacing=0.1)
+
+        # Save and/or show the plot
+        plt.tight_layout()
+        fig.savefig(output_path, bbox_inches="tight")
+        if show:
+            plt.show()
+        plt.close(fig)
 
     def plot_amplitude(self, output_path="outputs/amplitude_plot.pdf", show=False):
         fig, ax = plt.subplots(figsize=(self.config.fig_width, self.config.fig_height))
         colors = self.custom_colormap(np.linspace(0, 1, len(self.qnm_list)))
 
         for i, qnm in enumerate(self.qnm_list):
-            decay_time = qnmfits.qnm.omega_list([qnm], self.chif_mag_ref, self.Mf_ref)[0].imag
+            decay_time = qnmfits.qnm.omega_list([qnm], self.chif_mag_ref, self.Mf_ref)[
+                0
+            ].imag
             closest_time_index = np.argmin(np.abs(self.T0s - 0))
             C_tau = np.exp(decay_time * (self.T0s[closest_time_index] - self.T0s))
-            ax.plot(self.T0s, self.amplitudes_GP_percentiles[50][:, i] * C_tau, label=f"{qnm[2]}", color=colors[i])
-            ax.plot(self.T0s, self.amplitudes_WN_percentiles[50][:, i] * C_tau, linestyle="--", color=colors[i])
+            ax.plot(
+                self.T0s,
+                self.amplitudes_GP_percentiles[0.5][:, i] * C_tau,
+                label=f"{qnm[2]}",
+                color=colors[i],
+            )
+            ax.plot(
+                self.T0s,
+                self.amplitudes_WN_percentiles[0.5][:, i] * C_tau,
+                linestyle="--",
+                color=colors[i],
+            )
             ax.fill_between(
                 self.T0s,
-                self.amplitudes_GP_percentiles[10][:, i] * C_tau,
-                self.amplitudes_GP_percentiles[90][:, i] * C_tau,
+                self.amplitudes_GP_percentiles[0.1][:, i] * C_tau,
+                self.amplitudes_GP_percentiles[0.9][:, i] * C_tau,
                 alpha=0.2,
                 color=colors[i],
             )
             ax.fill_between(
                 self.T0s,
-                self.amplitudes_WN_percentiles[10][:, i] * C_tau,
-                self.amplitudes_WN_percentiles[90][:, i] * C_tau,
+                self.amplitudes_WN_percentiles[0.1][:, i] * C_tau,
+                self.amplitudes_WN_percentiles[0.9][:, i] * C_tau,
                 alpha=0.2,
                 color=colors[i],
             )
@@ -410,7 +546,13 @@ class MethodPlots:
         solid_line = Line2D([0], [0], color="black", linestyle="-")
         dashed_line = Line2D([0], [0], color="black", linestyle="--")
         color_legend = ax.legend(
-            title="$n$", title_fontsize=8, ncol=1, frameon=False, loc="center right", bbox_to_anchor=(1.23, 0.5), fontsize=7
+            title="$n$",
+            title_fontsize=8,
+            ncol=1,
+            frameon=False,
+            loc="center right",
+            bbox_to_anchor=(1.23, 0.5),
+            fontsize=7,
         )
         line_legend = ax.legend(
             [solid_line, dashed_line],
@@ -436,19 +578,33 @@ class MethodPlots:
             plt.show()
         plt.close(fig)
 
-
-    def plot_significance(self, output_path="outputs/significance_plot.pdf", show=False):
+    def plot_significance(
+        self, output_path="outputs/significance_plot.pdf", show=False
+    ):
         fig, ax = plt.subplots(figsize=(self.config.fig_width, self.config.fig_height))
         colors = self.custom_colormap(np.linspace(0, 1, len(self.qnm_list)))
 
         for i, qnm in enumerate(self.qnm_list):
-            ax.plot(self.T0s, self.significances_GP[:, i], label=f"{qnm[2]}", color=colors[i])
-            ax.plot(self.T0s, self.significances_WN[:, i], linestyle="--", color=colors[i])
+            ax.plot(
+                self.T0s,
+                self.significances_GP[:, i],
+                label=f"{qnm[2]}",
+                color=colors[i],
+            )
+            ax.plot(
+                self.T0s, self.significances_WN[:, i], linestyle="--", color=colors[i]
+            )
 
         solid_line = Line2D([0], [0], color="black", linestyle="-")
         dashed_line = Line2D([0], [0], color="black", linestyle="--")
         color_legend = ax.legend(
-            title="$n$", title_fontsize=8, ncol=1, frameon=False, loc="center right", bbox_to_anchor=(1.25, 0.5), fontsize=7
+            title="$n$",
+            title_fontsize=8,
+            ncol=1,
+            frameon=False,
+            loc="center right",
+            bbox_to_anchor=(1.25, 0.5),
+            fontsize=7,
         )
         line_legend = ax.legend(
             [solid_line, dashed_line],
@@ -474,19 +630,28 @@ class MethodPlots:
             plt.show()
         plt.close(fig)
 
-
-    def plot_fundamental_kde(self, output_path="outputs/fundamental_corner.pdf", show=False):
+    def plot_fundamental_kde(
+        self, output_path="outputs/fundamental_corner.pdf", show=False
+    ):
 
         parameter_choice = [(2, 2, 0, 1)]
 
         labels = [
-            rf"$\mathrm{{Re}}(C_{{({param[0]},{param[1]},{param[2]},+)}})$" if i % 2 == 0 else rf"$\mathrm{{Im}}(C_{{({param[0]},{param[1]},{param[2]},+)}})$"
+            (
+                rf"$\mathrm{{Re}}(C_{{({param[0]},{param[1]},{param[2]},+)}})$"
+                if i % 2 == 0
+                else rf"$\mathrm{{Im}}(C_{{({param[0]},{param[1]},{param[2]},+)}})$"
+            )
             for param in parameter_choice
             for i in range(2)
         ]
 
-        abs_indices_fundamental = [i for i, param in enumerate(self.qnm_list) if param in parameter_choice]
-        indices_fundamental = [i for i, param in enumerate(self.param_list) if param in parameter_choice]
+        abs_indices_fundamental = [
+            i for i, param in enumerate(self.qnm_list) if param in parameter_choice
+        ]
+        indices_fundamental = [
+            i for i, param in enumerate(self.param_list) if param in parameter_choice
+        ]
 
         samples_fundamental_WN = self.ref_samples_WN[:, indices_fundamental]
         samples_fundamental_GP = self.ref_samples_GP[:, indices_fundamental]
@@ -497,8 +662,8 @@ class MethodPlots:
         df_samples_fundamental_WN = pd.DataFrame(samples_fundamental_WN, columns=labels)
         df_samples_fundamental_GP = pd.DataFrame(samples_fundamental_GP, columns=labels)
 
-        df_samples_fundamental_WN['Dataset'] = 'WN'
-        df_samples_fundamental_GP['Dataset'] = 'GP'
+        df_samples_fundamental_WN["Dataset"] = "WN"
+        df_samples_fundamental_GP["Dataset"] = "GP"
 
         # Create the jointplot
         g = sns.jointplot(
@@ -510,16 +675,41 @@ class MethodPlots:
             palette=[self.fundamental_color_GP],
             marginal_kws={"fill": False},
             height=self.config.fig_width,
-            levels=[0.1, 0.5]
+            levels=[0.1, 0.5],
         )
 
-        sns.kdeplot(df_samples_fundamental_WN[labels[0]], ax=g.ax_marg_x, color=self.fundamental_color_WN, linestyle='--', fill=False)
-        sns.kdeplot(y=df_samples_fundamental_WN[labels[1]], ax=g.ax_marg_y, color=self.fundamental_color_WN, linestyle='--', fill=False)
-        sns.kdeplot(x=df_samples_fundamental_WN[labels[0]], y=df_samples_fundamental_WN[labels[1]], ax=g.ax_joint, color=self.fundamental_color_WN, fill=False, levels=[0.1, 0.5])
+        sns.kdeplot(
+            df_samples_fundamental_WN[labels[0]],
+            ax=g.ax_marg_x,
+            color=self.fundamental_color_WN,
+            linestyle="--",
+            fill=False,
+        )
+        sns.kdeplot(
+            y=df_samples_fundamental_WN[labels[1]],
+            ax=g.ax_marg_y,
+            color=self.fundamental_color_WN,
+            linestyle="--",
+            fill=False,
+        )
+        sns.kdeplot(
+            x=df_samples_fundamental_WN[labels[0]],
+            y=df_samples_fundamental_WN[labels[1]],
+            ax=g.ax_joint,
+            color=self.fundamental_color_WN,
+            fill=False,
+            levels=[0.1, 0.5],
+        )
 
         g.ax_joint.legend_.remove()
 
-        g.ax_joint.plot(self.ref_params[indices_fundamental[0]], self.ref_params[indices_fundamental[1]], "*", color="#fc5151", markersize=10)
+        g.ax_joint.plot(
+            self.ref_params[indices_fundamental[0]],
+            self.ref_params[indices_fundamental[1]],
+            "*",
+            color="#fc5151",
+            markersize=10,
+        )
 
         # Get dashed lines for the WN contours
         for collection in g.ax_joint.collections:
@@ -529,7 +719,7 @@ class MethodPlots:
             elif collection.get_facecolor().size:
                 color = to_hex(collection.get_facecolor()[0])
             if color == self.fundamental_color_WN:
-                collection.set_linestyle('--')  # Set linestyle to dashed for WN
+                collection.set_linestyle("--")  # Set linestyle to dashed for WN
 
         # Add inset plot
         ax_inset = inset_axes(
@@ -539,74 +729,107 @@ class MethodPlots:
             loc="lower right",
             borderpad=1,
             bbox_to_anchor=(0, 0.03, 1, 1),
-            bbox_transform=g.ax_joint.transAxes
+            bbox_transform=g.ax_joint.transAxes,
         )
 
-        df_samples_abs_fundamental_WN = pd.DataFrame({'Amplitude': samples_abs_fundamental_WN.flatten(), 'Dataset': 'WN'})
-        df_samples_abs_fundamental_GP = pd.DataFrame({'Amplitude': samples_abs_fundamental_GP.flatten(), 'Dataset': 'GP'})
+        df_samples_abs_fundamental_WN = pd.DataFrame(
+            {"Amplitude": samples_abs_fundamental_WN.flatten(), "Dataset": "WN"}
+        )
+        df_samples_abs_fundamental_GP = pd.DataFrame(
+            {"Amplitude": samples_abs_fundamental_GP.flatten(), "Dataset": "GP"}
+        )
 
-        df_samples_abs_fundamental_WN['Weight'] = self.samples_weights_WN
-        df_samples_abs_fundamental_GP['Weight'] = self.samples_weights_GP
+        df_samples_abs_fundamental_WN["Weight"] = self.samples_weights_WN
+        df_samples_abs_fundamental_GP["Weight"] = self.samples_weights_GP
 
         sns.kdeplot(
             data=df_samples_abs_fundamental_GP,
-            x='Amplitude',
+            x="Amplitude",
             color=self.fundamental_color_GP,
             label="GP (Prior 1)",
             linewidth=1,
-            ax=ax_inset
+            ax=ax_inset,
         )
         sns.kdeplot(
             data=df_samples_abs_fundamental_WN,
-            x='Amplitude',
+            x="Amplitude",
             color=self.fundamental_color_WN,
-            linestyle='--',
+            linestyle="--",
             linewidth=1,
             label="WN (Prior 1)",
-            ax=ax_inset
+            ax=ax_inset,
         )
 
         sns.kdeplot(
             data=df_samples_abs_fundamental_GP,
-            x='Amplitude',
+            x="Amplitude",
             color=self.fundamental_color_GP,
             label="GP (Prior 2)",
             linewidth=0.5,
-            weights='Weight',
-            ax=ax_inset
+            weights="Weight",
+            ax=ax_inset,
         )
         sns.kdeplot(
             data=df_samples_abs_fundamental_WN,
-            x='Amplitude',
+            x="Amplitude",
             color=self.fundamental_color_WN,
             label="WN (Prior 2)",
-            linestyle='--',
+            linestyle="--",
             linewidth=0.5,
-            weights='Weight',
-            ax=ax_inset
+            weights="Weight",
+            ax=ax_inset,
         )
 
         ax_inset.set_title(r"$|C_{\alpha}|$", fontsize=8)
-        #ax_inset.set_xlim(0.19, 0.23)
-        #ax_inset.set_ylim(0.0, 300)
+        # ax_inset.set_xlim(0.19, 0.23)
+        # ax_inset.set_ylim(0.0, 300)
         ax_inset.set_ylabel("")
         ax_inset.set_xlabel("")
         ax_inset.set_yticklabels([])
         ax_inset.yaxis.set_ticks([])
-        ax_inset.tick_params(axis='both', which='major', labelsize=6)
+        ax_inset.tick_params(axis="both", which="major", labelsize=6)
 
-        line_styles_inset = [Line2D([0], [0], color=self.fundamental_color_GP, linewidth=1, label='Prior 1'),
-                     Line2D([0], [0], color=self.fundamental_color_WN, linewidth=0.5, label='Prior 2')]
+        line_styles_inset = [
+            Line2D(
+                [0], [0], color=self.fundamental_color_GP, linewidth=1, label="Prior 1"
+            ),
+            Line2D(
+                [0],
+                [0],
+                color=self.fundamental_color_WN,
+                linewidth=0.5,
+                label="Prior 2",
+            ),
+        ]
 
-        ax_inset.legend(handles=line_styles_inset, loc='upper left', frameon=False, ncol=1, fontsize=4)
+        ax_inset.legend(
+            handles=line_styles_inset,
+            loc="upper left",
+            frameon=False,
+            ncol=1,
+            fontsize=4,
+        )
 
-        #g.ax_joint.set_xlim(-0.175, -0.135)
-        #g.ax_joint.set_ylim(0.01, 0.07)
+        g.ax_joint.set_xlim(-0.175, -0.135)
+        g.ax_joint.set_ylim(0.01, 0.07)
 
-        line_styles = [Line2D([0], [0], color=self.fundamental_color_WN, linestyle='-', label='GP'),
-                       Line2D([0], [0], color=self.fundamental_color_WN, linestyle='--', label='WN')]
+        line_styles = [
+            Line2D(
+                [0], [0], color=self.fundamental_color_WN, linestyle="-", label="GP"
+            ),
+            Line2D(
+                [0], [0], color=self.fundamental_color_WN, linestyle="--", label="WN"
+            ),
+        ]
 
-        g.figure.legend(handles=line_styles, loc='upper left', frameon=False, bbox_to_anchor=(0.22, 0.84), ncol=2, fontsize=7)
+        g.figure.legend(
+            handles=line_styles,
+            loc="upper left",
+            frameon=False,
+            bbox_to_anchor=(0.22, 0.84),
+            ncol=2,
+            fontsize=7,
+        )
 
         g.figure.savefig(output_path, bbox_inches="tight")
 
@@ -615,19 +838,26 @@ class MethodPlots:
 
         plt.close(g.figure)
 
-
     def plot_overtone_kde(self, output_path="outputs/overtone_corner.pdf", show=False):
 
         parameter_choice = [(2, 2, 2, 1)]
 
         labels = [
-            rf"$\mathrm{{Re}}(C_{{({param[0]},{param[1]},{param[2]},+)}})$" if i % 2 == 0 else rf"$\mathrm{{Im}}(C_{{({param[0]},{param[1]},{param[2]},+)}})$"
+            (
+                rf"$\mathrm{{Re}}(C_{{({param[0]},{param[1]},{param[2]},+)}})$"
+                if i % 2 == 0
+                else rf"$\mathrm{{Im}}(C_{{({param[0]},{param[1]},{param[2]},+)}})$"
+            )
             for param in parameter_choice
             for i in range(2)
         ]
 
-        abs_indices_overtone = [i for i, param in enumerate(self.qnm_list) if param in parameter_choice]
-        indices_overtone = [i for i, param in enumerate(self.param_list) if param in parameter_choice]
+        abs_indices_overtone = [
+            i for i, param in enumerate(self.qnm_list) if param in parameter_choice
+        ]
+        indices_overtone = [
+            i for i, param in enumerate(self.param_list) if param in parameter_choice
+        ]
 
         samples_overtone_WN = self.ref_samples_WN[:, indices_overtone]
         samples_overtone_GP = self.ref_samples_GP[:, indices_overtone]
@@ -638,8 +868,8 @@ class MethodPlots:
         df_samples_overtone_WN = pd.DataFrame(samples_overtone_WN, columns=labels)
         df_samples_overtone_GP = pd.DataFrame(samples_overtone_GP, columns=labels)
 
-        df_samples_overtone_WN['Dataset'] = 'WN'
-        df_samples_overtone_GP['Dataset'] = 'GP'
+        df_samples_overtone_WN["Dataset"] = "WN"
+        df_samples_overtone_GP["Dataset"] = "GP"
 
         # Create the jointplot
         g = sns.jointplot(
@@ -651,16 +881,41 @@ class MethodPlots:
             palette=[self.overtone_color_GP],
             marginal_kws={"fill": False},
             height=self.config.fig_width,
-            levels=[0.1, 0.5]
+            levels=[0.1, 0.5],
         )
 
-        sns.kdeplot(df_samples_overtone_WN[labels[0]], ax=g.ax_marg_x, color=self.overtone_color_WN, linestyle='--', fill=False)
-        sns.kdeplot(y=df_samples_overtone_WN[labels[1]], ax=g.ax_marg_y, color=self.overtone_color_WN, linestyle='--', fill=False)
-        sns.kdeplot(x=df_samples_overtone_WN[labels[0]], y=df_samples_overtone_WN[labels[1]], ax=g.ax_joint, color=self.overtone_color_WN, fill=False, levels=[0.1, 0.5])
+        sns.kdeplot(
+            df_samples_overtone_WN[labels[0]],
+            ax=g.ax_marg_x,
+            color=self.overtone_color_WN,
+            linestyle="--",
+            fill=False,
+        )
+        sns.kdeplot(
+            y=df_samples_overtone_WN[labels[1]],
+            ax=g.ax_marg_y,
+            color=self.overtone_color_WN,
+            linestyle="--",
+            fill=False,
+        )
+        sns.kdeplot(
+            x=df_samples_overtone_WN[labels[0]],
+            y=df_samples_overtone_WN[labels[1]],
+            ax=g.ax_joint,
+            color=self.overtone_color_WN,
+            fill=False,
+            levels=[0.1, 0.5],
+        )
 
         g.ax_joint.legend_.remove()
 
-        g.ax_joint.plot(self.ref_params[indices_overtone[0]], self.ref_params[indices_overtone[1]], "*", color="#fc5151", markersize=10)
+        g.ax_joint.plot(
+            self.ref_params[indices_overtone[0]],
+            self.ref_params[indices_overtone[1]],
+            "*",
+            color="#fc5151",
+            markersize=10,
+        )
 
         # Get dashed lines for the WN contours
         for collection in g.ax_joint.collections:
@@ -670,7 +925,7 @@ class MethodPlots:
             elif collection.get_facecolor().size:
                 color = to_hex(collection.get_facecolor()[0])
             if color == self.overtone_color_WN:
-                collection.set_linestyle('--')  # Set linestyle to dashed for WN
+                collection.set_linestyle("--")  # Set linestyle to dashed for WN
 
         g.ax_joint.axvline(0, color="black", linestyle=":", linewidth=1)
         g.ax_joint.axhline(0, color="black", linestyle=":", linewidth=1)
@@ -682,36 +937,60 @@ class MethodPlots:
             loc="lower right",
             borderpad=1,
             bbox_to_anchor=(0, 0.03, 1, 1),
-            bbox_transform=g.ax_joint.transAxes
+            bbox_transform=g.ax_joint.transAxes,
         )
 
-        df_samples_abs_overtone_WN = pd.DataFrame({'Amplitude': np.hstack((samples_abs_overtone_WN.flatten(), -samples_abs_overtone_WN.flatten())), 'Dataset': 'WN'})
-        df_samples_abs_overtone_GP = pd.DataFrame({'Amplitude': np.hstack((samples_abs_overtone_GP.flatten(), -samples_abs_overtone_GP.flatten())), 'Dataset': 'GP'})
+        df_samples_abs_overtone_WN = pd.DataFrame(
+            {
+                "Amplitude": np.hstack(
+                    (
+                        samples_abs_overtone_WN.flatten(),
+                        -samples_abs_overtone_WN.flatten(),
+                    )
+                ),
+                "Dataset": "WN",
+            }
+        )
+        df_samples_abs_overtone_GP = pd.DataFrame(
+            {
+                "Amplitude": np.hstack(
+                    (
+                        samples_abs_overtone_GP.flatten(),
+                        -samples_abs_overtone_GP.flatten(),
+                    )
+                ),
+                "Dataset": "GP",
+            }
+        )
 
-        df_samples_abs_overtone_WN['Weight'] = np.hstack((self.samples_weights_WN, self.samples_weights_WN))
-        df_samples_abs_overtone_GP['Weight'] = np.hstack((self.samples_weights_GP, self.samples_weights_GP))
+        df_samples_abs_overtone_WN["Weight"] = np.hstack(
+            (self.samples_weights_WN, self.samples_weights_WN)
+        )
+        df_samples_abs_overtone_GP["Weight"] = np.hstack(
+            (self.samples_weights_GP, self.samples_weights_GP)
+        )
 
         sns.kdeplot(
             data=df_samples_abs_overtone_GP,
-            x='Amplitude',
+            x="Amplitude",
             color=self.overtone_color_GP,
             linewidth=1,
             label="GP (Prior 1)",
-            ax=ax_inset
+            ax=ax_inset,
         )
         sns.kdeplot(
             data=df_samples_abs_overtone_WN,
-            x='Amplitude',
+            x="Amplitude",
             color=self.overtone_color_WN,
-            linestyle='--',
+            linestyle="--",
             linewidth=1,
             label="WN (Prior 1)",
-            ax=ax_inset
+            ax=ax_inset,
         )
 
         sns.kdeplot(
             data=df_samples_abs_overtone_GP,
-            x='Amplitude',
+            x="Amplitude",
             color=self.overtone_color_GP,
             label="GP (Prior 2)",
             linewidth=0.5,
@@ -720,35 +999,56 @@ class MethodPlots:
         )
         sns.kdeplot(
             data=df_samples_abs_overtone_WN,
-            x='Amplitude',
+            x="Amplitude",
             color=self.overtone_color_WN,
             label="WN (Prior 2)",
-            linestyle='--',
+            linestyle="--",
             linewidth=0.5,
             weights="Weight",
             ax=ax_inset,
         )
 
         ax_inset.set_title(r"$|C_{\alpha}|$", fontsize=8)
-        #ax_inset.set_xlim(0, 2)
-        #ax_inset.set_ylim(0, 2.5)
+        # ax_inset.set_xlim(0, 2)
+        # ax_inset.set_ylim(0, 2.5)
         ax_inset.set_ylabel("")
         ax_inset.set_xlabel("")
         ax_inset.set_yticklabels([])
         ax_inset.yaxis.set_ticks([])
-        ax_inset.tick_params(axis='both', which='major', labelsize=6)
+        ax_inset.tick_params(axis="both", which="major", labelsize=6)
 
-        line_styles_inset = [Line2D([0], [0], color=self.overtone_color_GP, linewidth=1, label='Prior 1'),
-                     Line2D([0], [0], color=self.overtone_color_WN, linewidth=0.5, label='Prior 2')]
+        line_styles_inset = [
+            Line2D(
+                [0], [0], color=self.overtone_color_GP, linewidth=1, label="Prior 1"
+            ),
+            Line2D(
+                [0], [0], color=self.overtone_color_WN, linewidth=0.5, label="Prior 2"
+            ),
+        ]
 
-        ax_inset.legend(handles=line_styles_inset, loc='upper right', frameon=False, ncol=1, fontsize=6)
+        ax_inset.legend(
+            handles=line_styles_inset,
+            loc="upper right",
+            frameon=False,
+            ncol=1,
+            fontsize=6,
+        )
 
-        #g.ax_joint.set_ylim(-4, 2)
+        g.ax_joint.set_ylim(-4, 2)
 
-        line_styles = [Line2D([0], [0], color=self.overtone_color_GP, linestyle='-', label='GP'),
-                   Line2D([0], [0], color=self.overtone_color_WN, linestyle='--', label='WN')]
+        line_styles = [
+            Line2D([0], [0], color=self.overtone_color_GP, linestyle="-", label="GP"),
+            Line2D([0], [0], color=self.overtone_color_WN, linestyle="--", label="WN"),
+        ]
 
-        g.figure.legend(handles=line_styles, loc='upper left', frameon=False, bbox_to_anchor=(0.22, 0.84), ncol=1, fontsize=7)
+        g.figure.legend(
+            handles=line_styles,
+            loc="upper left",
+            frameon=False,
+            bbox_to_anchor=(0.22, 0.84),
+            ncol=1,
+            fontsize=7,
+        )
 
         g.figure.savefig(output_path, bbox_inches="tight")
 
@@ -756,11 +1056,14 @@ class MethodPlots:
             plt.show()
         plt.close(g.figure)
 
-
-    def plot_mass_spin_corner(self, output_path="outputs/mass_spin_corner.pdf", show=False):
+    def plot_mass_spin_corner(
+        self, output_path="outputs/mass_spin_corner.pdf", show=False
+    ):
         parameter_choice = ["chif", "Mf"]
 
-        indices_Chif_M = [i for i, param in enumerate(self.param_list) if param in parameter_choice]
+        indices_Chif_M = [
+            i for i, param in enumerate(self.param_list) if param in parameter_choice
+        ]
         labels_Chif_M = parameter_choice
 
         samples_Chif_M_WN = self.ref_samples_WN[:, indices_Chif_M]
@@ -769,8 +1072,8 @@ class MethodPlots:
         df_wn_Chif_M = pd.DataFrame(samples_Chif_M_WN, columns=labels_Chif_M)
         df_main_Chif_M = pd.DataFrame(samples_Chif_M_GP, columns=labels_Chif_M)
 
-        df_wn_Chif_M['Dataset'] = 'WN'
-        df_main_Chif_M['Dataset'] = 'GP'
+        df_wn_Chif_M["Dataset"] = "WN"
+        df_main_Chif_M["Dataset"] = "GP"
 
         # Create the jointplot
         g = sns.jointplot(
@@ -785,9 +1088,28 @@ class MethodPlots:
             levels=[0.1, 0.5],
         )
 
-        sns.kdeplot(df_wn_Chif_M[labels_Chif_M[0]], ax=g.ax_marg_x, color=self.fundamental_color_WN, linestyle='--', fill=False)
-        sns.kdeplot(y=df_wn_Chif_M[labels_Chif_M[1]], ax=g.ax_marg_y, color=self.fundamental_color_WN, linestyle='--', fill=False)
-        sns.kdeplot(x=df_wn_Chif_M[labels_Chif_M[0]], y=df_wn_Chif_M[labels_Chif_M[1]], ax=g.ax_joint, color=self.fundamental_color_WN, fill=False, levels=[0.1, 0.5])
+        sns.kdeplot(
+            df_wn_Chif_M[labels_Chif_M[0]],
+            ax=g.ax_marg_x,
+            color=self.fundamental_color_WN,
+            linestyle="--",
+            fill=False,
+        )
+        sns.kdeplot(
+            y=df_wn_Chif_M[labels_Chif_M[1]],
+            ax=g.ax_marg_y,
+            color=self.fundamental_color_WN,
+            linestyle="--",
+            fill=False,
+        )
+        sns.kdeplot(
+            x=df_wn_Chif_M[labels_Chif_M[0]],
+            y=df_wn_Chif_M[labels_Chif_M[1]],
+            ax=g.ax_joint,
+            color=self.fundamental_color_WN,
+            fill=False,
+            levels=[0.1, 0.5],
+        )
 
         # --- Adjust the central plot (ax_joint) KDEs ---
         for collection in g.ax_joint.collections:
@@ -798,11 +1120,13 @@ class MethodPlots:
                 color = to_hex(collection.get_facecolor()[0])
 
             if color == self.fundamental_color_WN:
-                collection.set_linestyle('--')  # Set linestyle to dashed for WN
+                collection.set_linestyle("--")  # Set linestyle to dashed for WN
 
         # Add vertical and horizontal dotted lines at the truth values
         g.ax_joint.plot(self.chif_t0, self.Mf_t0, "*", color="#fc5151", markersize=10)
-        g.ax_joint.plot(self.chif_mag_ref, self.Mf_ref, "x", color="#fc5151", markersize=10)
+        g.ax_joint.plot(
+            self.chif_mag_ref, self.Mf_ref, "x", color="#fc5151", markersize=10
+        )
 
         # Add legend for the truth values
         g.ax_joint.legend(loc="upper right", frameon=False)
@@ -813,10 +1137,21 @@ class MethodPlots:
         g.ax_joint.set_xlim(0.66, 0.72)
         g.ax_joint.set_ylim(0.935, 0.975)
 
-        line_styles = [Line2D([0], [0], color=self.fundamental_color_GP, linestyle='-', label='GP'),
-                   Line2D([0], [0], color=self.fundamental_color_WN, linestyle='--', label='WN')]
+        line_styles = [
+            Line2D(
+                [0], [0], color=self.fundamental_color_GP, linestyle="-", label="GP"
+            ),
+            Line2D(
+                [0], [0], color=self.fundamental_color_WN, linestyle="--", label="WN"
+            ),
+        ]
 
-        g.figure.legend(handles=line_styles, loc='upper left', frameon=False, bbox_to_anchor=(0.2, 0.83))
+        g.figure.legend(
+            handles=line_styles,
+            loc="upper left",
+            frameon=False,
+            bbox_to_anchor=(0.2, 0.83),
+        )
 
         g.figure.savefig(output_path, bbox_inches="tight")
 
@@ -824,46 +1159,66 @@ class MethodPlots:
             plt.show()
         plt.close(g.figure)
 
-
 def main():
     # Initialize the MethodPlots instance
-    method_plots = MethodPlots(id="0001", N_MAX=7, T=100, T0_REF=17, include_Mf=True, include_chif=True)
+    method_plots = MethodPlots(
+        id="0001", N_MAX=7, T=100, T0_REF=17, include_Mf=True, include_chif=True
+    )
 
     # Perform necessary computations
     method_plots.load_tuned_parameters()
     method_plots.compute_mf_chif()
-    method_plots.compute_fits()
-    #method_plots.get_t0_ref_fits()
+    method_plots.compute_quantities()
+    print("Computed quantities. Plotting...")
+    method_plots.get_t0_ref_fits()
 
     # Generate plots
     method_plots.plot_mismatch(output_path="outputs/mismatch.pdf", show=False)
+    method_plots.plot_log_likelihood(output_path="outputs/log_likelihood_mismatch_plot.pdf", show=False)
     method_plots.plot_amplitude(output_path="outputs/amplitude.pdf", show=False)
     method_plots.plot_significance(output_path="outputs/significance.pdf", show=False)
-    #method_plots.plot_fundamental_kde(output_path="outputs/fundamental_kde.pdf", show=False)
-    #method_plots.plot_overtone_kde(output_path="outputs/overtone_kde.pdf", show=False)
-    #method_plots.plot_mass_spin_corner(output_path="outputs/mass_spin_corner.pdf", show=False)
+    method_plots.plot_fundamental_kde(
+        output_path="outputs/fundamental_kde.pdf", show=False
+    )
+    method_plots.plot_overtone_kde(output_path="outputs/overtone_kde.pdf", show=False)
+    method_plots.plot_mass_spin_corner(
+        output_path="outputs/mass_spin_corner.pdf", show=False
+    )
 
 def main_iter():
-    for id, T0_ref in zip(['0001', '0002', '0003', '0004'], [17, 21, 23, 26]):
-        for extra_qnm in [[], [(3,2,0,1)]]:
-            method_plots = MethodPlots(id=id, N_MAX=7, T=100, T0_REF=T0_ref, include_Mf=True, include_chif=True)
+    for id, T0_ref in zip(["0001", "0002", "0003", "0004"], [17, 21, 23, 26]):
+        for extra_qnm in [[], [(3, 2, 0, 1)]]:
+            method_plots = MethodPlots(
+                id=id, N_MAX=7, T=100, T0_REF=T0_ref, include_Mf=True, include_chif=True
+            )
             method_plots.qnm_list += extra_qnm
             method_plots._initialize_results()
 
             # Perform necessary computations
             method_plots.load_tuned_parameters()
             method_plots.compute_mf_chif()
-            method_plots.compute_fits()
+            method_plots.compute_quantities()
             method_plots.get_t0_ref_fits()
 
             # Generate plots
-            method_plots.plot_mismatch(output_path=f"outputs/mismatch_{id}_{extra_qnm}.pdf", show=False)
-            method_plots.plot_amplitude(output_path=f"outputs/amplitude_{id}_{extra_qnm}.pdf", show=False)
-            method_plots.plot_significance(output_path=f"outputs/significance_{id}_{extra_qnm}.pdf", show=False)
-            method_plots.plot_fundamental_kde(output_path=f"outputs/fundamental_kde_{id}_{extra_qnm}.pdf", show=False)
-            method_plots.plot_overtone_kde(output_path=f"outputs/overtone_kde_{id}_{extra_qnm}.pdf", show=False)
-            method_plots.plot_mass_spin_corner(output_path=f"outputs/mass_spin_corner_{id}_{extra_qnm}.pdf", show=False)
-
+            method_plots.plot_mismatch(
+                output_path=f"outputs/mismatch_{id}_{extra_qnm}.pdf", show=False
+            )
+            method_plots.plot_amplitude(
+                output_path=f"outputs/amplitude_{id}_{extra_qnm}.pdf", show=False
+            )
+            method_plots.plot_significance(
+                output_path=f"outputs/significance_{id}_{extra_qnm}.pdf", show=False
+            )
+            method_plots.plot_fundamental_kde(
+                output_path=f"outputs/fundamental_kde_{id}_{extra_qnm}.pdf", show=False
+            )
+            method_plots.plot_overtone_kde(
+                output_path=f"outputs/overtone_kde_{id}_{extra_qnm}.pdf", show=False
+            )
+            method_plots.plot_mass_spin_corner(
+                output_path=f"outputs/mass_spin_corner_{id}_{extra_qnm}.pdf", show=False
+            )
 
 if __name__ == "__main__":
-    main_iter()
+    main()

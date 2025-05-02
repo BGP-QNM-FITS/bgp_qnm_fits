@@ -1,8 +1,15 @@
+"""
+
+This contains the functions used to construct the GP covariance matrices. 
+It also contains functions to compute the similarity between the matrices. 
+
+"""
+
 import numpy as np
 import jax
 import jax.numpy as jnp
 from scipy.stats import wasserstein_distance
-from bayes_qnm_GP_likelihood.utils import get_inverse
+#from bayes_qnm_GP_likelihood.utils import get_inverse
 
 def squared_exp_element(t1, t2, period):
     dist = jnp.abs(t1[:, None] - t2[None, :])
@@ -109,6 +116,22 @@ def compute_kernel_matrix(analysis_times, hyperparams, kernel):
     )
 
 
+def get_inv_GP_covariance_matrix(
+    analysis_times, kernel, tuned_param_dict, spherical_modes=None
+):
+    if spherical_modes == None:
+        spherical_modes = tuned_param_dict.keys()
+    kernel_dict = {
+        mode: compute_kernel_matrix(analysis_times, tuned_param_dict[mode], kernel)
+        for mode in spherical_modes
+    }
+
+    return np.array(
+        [get_inverse(kernel_dict[mode]) for mode in spherical_modes],
+        dtype=np.complex128,
+    )
+
+
 def kl_divergence(p, q):
     dim = p.shape[0]
     inv_q = get_inverse(q) 
@@ -136,19 +159,3 @@ def js_divergence(p, q):
 
 def ws_distance(p, q):
     return wasserstein_distance(p.flatten(), q.flatten())
-
-
-def get_inv_GP_covariance_matrix(
-    analysis_times, kernel, tuned_param_dict, spherical_modes=None
-):
-    if spherical_modes == None:
-        spherical_modes = tuned_param_dict.keys()
-    kernel_dict = {
-        mode: compute_kernel_matrix(analysis_times, tuned_param_dict[mode], kernel)
-        for mode in spherical_modes
-    }
-
-    return np.array(
-        [get_inverse(kernel_dict[mode]) for mode in spherical_modes],
-        dtype=np.complex128,
-    )

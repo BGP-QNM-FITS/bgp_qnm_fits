@@ -1,4 +1,9 @@
-"""This module contains functions for selecting significant QNMs in a model."""
+"""
+
+This module contains functions for selecting significant QNMs in a model.
+Primarily relevant to dropout-type analyses. 
+
+"""
 
 import numpy as np
 from scipy.linalg import cho_factor, cho_solve 
