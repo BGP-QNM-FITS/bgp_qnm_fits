@@ -141,9 +141,10 @@ def train_hyper_params(
 
 
 def log_evidence(K, f):
+    breakpoint() 
     _, logdet = np.linalg.slogdet(K)
     return -0.5 * (
-        np.dot(f, np.linalg.solve(K, f))
+        np.dot(f, scipy.linalg.solve(K, f, assume_a="pos"))
         + logdet
         + len(f) * np.log(2 * np.pi)
     )
