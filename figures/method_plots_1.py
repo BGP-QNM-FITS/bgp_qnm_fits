@@ -251,6 +251,7 @@ class MethodPlots:
             spherical_modes=self.spherical_modes,
             include_chif=self.include_chif,
             include_Mf=self.include_Mf,
+            num_samples = 10000
         )
 
         fits_GP = BGP_fit(
@@ -267,6 +268,7 @@ class MethodPlots:
             spherical_modes=self.spherical_modes,
             include_chif=self.include_chif,
             include_Mf=self.include_Mf,
+            num_samples = 10000
         )
 
         self._store_results(
@@ -810,8 +812,8 @@ class MethodPlots:
             fontsize=4,
         )
 
-        g.ax_joint.set_xlim(-0.175, -0.135)
-        g.ax_joint.set_ylim(0.01, 0.07)
+        #g.ax_joint.set_xlim(-0.175, -0.135)
+        g.ax_joint.set_ylim(0.01, 0.065)
 
         line_styles = [
             Line2D(
@@ -1009,7 +1011,7 @@ class MethodPlots:
         )
 
         ax_inset.set_title(r"$|C_{\alpha}|$", fontsize=8)
-        # ax_inset.set_xlim(0, 2)
+        ax_inset.set_xlim(0, 2)
         # ax_inset.set_ylim(0, 2.5)
         ax_inset.set_ylabel("")
         ax_inset.set_xlabel("")
