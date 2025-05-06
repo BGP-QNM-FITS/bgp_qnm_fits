@@ -8,6 +8,7 @@ It also contains functions to compute the similarity between the matrices.
 import numpy as np
 import jax
 import jax.numpy as jnp
+from bayes_qnm_GP_likelihood.utils import get_inverse
 from scipy.stats import wasserstein_distance
 #from bayes_qnm_GP_likelihood.utils import get_inverse
 
@@ -110,7 +111,9 @@ def kernel_c(analysis_times, **kwargs):
 
 
 def compute_kernel_matrix(analysis_times, hyperparams, kernel):
-    return (
+    # Positive definiteness enforced for all matrices 
+    # TODO double check if this is a reasonable thing to do 
+    return make_positive_definite(
         kernel(jnp.asarray(analysis_times), **hyperparams) 
         + jnp.eye(len(analysis_times)) * 1e-13
     )
@@ -132,10 +135,17 @@ def get_inv_GP_covariance_matrix(
     )
 
 
+def make_positive_definite(matrix, epsilon=1e-9):
+    eigenvalues, eigenvectors = np.linalg.eigh(matrix)
+    eigenvalues = np.maximum(eigenvalues, epsilon)
+    matrix = eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
+    matrix = (matrix + matrix.T) / 2
+    return (matrix + matrix.T) / 2
+
+
 def kl_divergence(p, q):
     dim = p.shape[0]
-    inv_q = get_inverse(q) 
-    trace_term = np.trace(inv_q @ p)
+    trace_term = np.trace(np.linalg.solve(q, p)) 
     log_det_p = np.linalg.slogdet(p)[1]
     log_det_q = np.linalg.slogdet(q)[1]
     kl_div = 0.5 * (trace_term - dim + log_det_q - log_det_p)

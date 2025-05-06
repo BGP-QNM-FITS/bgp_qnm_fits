@@ -6,10 +6,7 @@ from pathlib import Path
 notebook_dir = Path().resolve()
 sys.path.append(str(notebook_dir.parent))
 
-from bayes_qnm_GP_likelihood.likelihood_funcs import *
-from bayes_qnm_GP_likelihood.GP_funcs import *
-from bayes_qnm_GP_likelihood.utils import *
-from bayes_qnm_GP_likelihood.kernel_param_funcs import *
+from bayes_qnm_GP_likelihood import *
 
 SIMNUMS = ["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009", "0010", "0011", "0012", "0013"]
 RINGDOWN_START_TIMES = [17.0, 21.0, 23.0, 26.0, 17.0, 17.0, 17.0, 11.0, 29.0, 16.0, 12.0, 17.0, 6.0]
@@ -78,7 +75,7 @@ BOUNDS_GPC = [
 
 INITIAL_PARAMS_WN = [1.] 
 INITIAL_PARAMS_GP = [1.0, 0.0, 1.0, 1.0]
-INITIAL_PARAMS_GPC = [0.7805154283170234, -0.005843760691585904, SMOOTHNESS, 2.9693696011904516, 0.4625481109994475, 2.9693696011904516, 0.4625481109994475, 0.5] 
+INITIAL_PARAMS_GPC = [0.5715534011443748, 0.0032311845355438894, SMOOTHNESS, 1.7176362780942858, 0.31558556618927797, 1.7176362780942858, 0.31558556618927797, 0.5] 
 
 # Define rules for updating params 
 
@@ -210,12 +207,12 @@ def get_hyperparams_GPC(R_dict, param_dict):
 
     
 if __name__ == "__main__":
-    with open("param_dict_sim_lm_full.pkl", "rb") as f:
-        param_dict = pickle.load(f)
-    with open("R_dict_sim_lm_full.pkl", "rb") as f:
-        R_dict = pickle.load(f)
     #R_dict, param_dict = get_parameters()
     #print("Getting hyperparameters...")
+    with open("param_dict.pkl", "rb") as f:
+        param_dict = pickle.load(f)
+    with open("R_dict.pkl", "rb") as f:
+        R_dict = pickle.load(f)
     #hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
     #print("Hyperparameters for WN:", hyperparam_list_WN)
     hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict, param_dict)

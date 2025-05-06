@@ -116,25 +116,13 @@ class MethodPlots:
         """
         Load tuned kernel parameters for GP and WN fits.
         """
-        with open(data_dir / "tuned_params.pkl", "rb") as f:
-            params = pickle.load(f)
-        self.tuned_param_dict_main = params[self.id]
+        with open(data_dir / "tuned_params_GP.pkl", "rb") as f:
+            params_GP = pickle.load(f)
+        self.tuned_param_dict_main = params_GP[self.id]
 
-        with open(data_dir / "param_dict_sim_lm_full.pkl", "rb") as f:
-            param_dict_sim_lm = pickle.load(f)
-
-        tuning_hyperparams_s = [
-            0.29245605468749936
-        ]  # This value was determined in get_kernel_params_alt.ipynb
-        hyperparam_rule_dict_s = {"sigma_max": "multiply"}
-        self.tuned_param_dict_wn = {
-            mode: get_new_params(
-                param_dict_sim_lm[self.id][mode],
-                tuning_hyperparams_s,
-                hyperparam_rule_dict_s,
-            )
-            for mode in param_dict_sim_lm[self.id]
-        }
+        with open(data_dir / "tuned_params_WN.pkl", "rb") as f:
+            params_WN = pickle.load(f)
+        self.tuned_param_dict_wn = params_WN[self.id]
 
     def compute_mf_chif(self):
         """
@@ -717,7 +705,7 @@ class MethodPlots:
         for collection in g.ax_joint.collections:
             color = None
             if collection.get_edgecolor().size:
-                olor = to_hex(collection.get_edgecolor()[0])
+                color = to_hex(collection.get_edgecolor()[0])
             elif collection.get_facecolor().size:
                 color = to_hex(collection.get_facecolor()[0])
             if color == self.fundamental_color_WN:
@@ -817,7 +805,7 @@ class MethodPlots:
 
         line_styles = [
             Line2D(
-                [0], [0], color=self.fundamental_color_WN, linestyle="-", label="GP"
+                [0], [0], color=self.fundamental_color_GP, linestyle="-", label="GP"
             ),
             Line2D(
                 [0], [0], color=self.fundamental_color_WN, linestyle="--", label="WN"
@@ -829,7 +817,7 @@ class MethodPlots:
             loc="upper left",
             frameon=False,
             bbox_to_anchor=(0.22, 0.84),
-            ncol=2,
+            ncol=1,
             fontsize=7,
         )
 
