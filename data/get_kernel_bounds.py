@@ -1,5 +1,7 @@
+import numpy as np
 import pickle
 import sys
+from scipy.optimize import differential_evolution
 from pathlib import Path
 
 notebook_dir = Path().resolve()
@@ -73,7 +75,7 @@ EPSILON = 1 / 10
 
 TRAINING_START_TIME = -10
 TRAINING_END_TIME = 100
-TIME_STEP = 0.1
+TIME_STEP = 1
 
 # Define training bounds
 
@@ -111,10 +113,6 @@ BOUNDS_GPC = [
 
 # Set initial params
 
-# INITIAL_PARAMS_WN = [1.]
-# INITIAL_PARAMS_GP = [1.0, 0.0, 1.0, 1.0]
-# INITIAL_PARAMS_GPC = [0.5715534011443748, 0.0032311845355438894, SMOOTHNESS, 1.7176362780942858, 0.31558556618927797, 1.7176362780942858, 0.31558556618927797, 0.5]
-
 INITIAL_PARAMS_WN = [0.2427084073890334]
 INITIAL_PARAMS_GP = [
     0.3980389941570934,
@@ -122,16 +120,15 @@ INITIAL_PARAMS_GP = [
     0.9402560980229044,
     0.2534488252986766,
 ]
-# INITIAL_PARAMS_GPC = [0.5678699426741673, 3.3680141572797027, 7.841502124072786, 1.241209026430354, 0.9894982312667636, 0.1064862157208278, 0.139811581920352, 0.5917377132835934]
 INITIAL_PARAMS_GPC = [
-    0.56698331,
-    3.07506273,
-    10.05455381,
-    1.26665191,
-    0.88166884,
-    0.1212859,
-    1.13996704,
-    0.47001289,
+    0.5678699426741673,
+    3.3680141572797027,
+    7.841502124072786,
+    1.241209026430354,
+    0.9894982312667636,
+    0.1064862157208278,
+    0.139811581920352,
+    0.5917377132835934,
 ]
 
 # Define rules for updating params
@@ -250,27 +247,163 @@ def get_hyperparams_GPC(R_dict, param_dict):
     return hyperparam_list, le, tuned_params
 
 
+def get_hyperparams_WN_global(R_dict, param_dict):
+    analysis_times = np.arange(
+        TRAINING_START_TIME,
+        TRAINING_START_TIME + TRAINING_END_TIME,
+        TIME_STEP,
+    )
+
+    args = (
+        param_dict,
+        R_dict,
+        HYPERPARAM_RULE_DICT_WN,
+        analysis_times,
+        kernel_s,
+        TRAINING_SPH_MODES,
+        SIM_TRAINING_MODE_RULES,
+    )
+
+    result = differential_evolution(
+        get_total_log_evidence,
+        BOUNDS_WN,
+        args,
+    )
+
+    print("Optimisation success?", result.success)
+    print("Optimisation message:", result.message)
+
+    print(
+        "Optimal parameters:",
+        dict(zip(HYPERPARAM_RULE_DICT_WN.keys(), result.x)),
+        "Log evidence:",
+        result.fun,
+    )
+
+    return result.x, result.fun
+
+
+def get_hyperparams_GP_global(R_dict, param_dict):
+    analysis_times = np.arange(
+        TRAINING_START_TIME,
+        TRAINING_START_TIME + TRAINING_END_TIME,
+        TIME_STEP,
+    )
+
+    args = (
+        param_dict,
+        R_dict,
+        HYPERPARAM_RULE_DICT_GP,
+        analysis_times,
+        kernel_main,
+        TRAINING_SPH_MODES,
+        SIM_TRAINING_MODE_RULES,
+    )
+
+    result = differential_evolution(
+        get_total_log_evidence,
+        BOUNDS_GP,
+        args,
+    )
+
+    print("Optimisation success?", result.success)
+    print("Optimisation message:", result.message)
+
+    print(
+        "Optimal parameters:",
+        dict(zip(HYPERPARAM_RULE_DICT_GP.keys(), result.x)),
+        "Log evidence:",
+        result.fun,
+    )
+
+    return result.x, result.fun
+
+
+def get_hyperparams_GPC_global(R_dict, param_dict):
+    analysis_times = np.arange(
+        TRAINING_START_TIME,
+        TRAINING_START_TIME + TRAINING_END_TIME,
+        TIME_STEP,
+    )
+
+    args = (
+        param_dict,
+        R_dict,
+        HYPERPARAM_RULE_DICT_GPC,
+        analysis_times,
+        kernel_c,
+        TRAINING_SPH_MODES,
+        SIM_TRAINING_MODE_RULES,
+    )
+
+    result = differential_evolution(
+        get_total_log_evidence,
+        BOUNDS_GPC,
+        args,
+    )
+
+    print("Optimisation success?", result.success)
+    print("Optimisation message:", result.message)
+
+    print(
+        "Optimal parameters:",
+        dict(zip(HYPERPARAM_RULE_DICT_GPC.keys(), result.x)),
+        "Log evidence:",
+        result.fun,
+    )
+
+    return result.x, result.fun
+
+
 if __name__ == "__main__":
     # R_dict, param_dict = get_parameters()
-    # print("Getting hyperparameters...")
-    with open("param_dict.pkl", "rb") as f:
+
+    # with open("R_dict_mini.pkl", "wb") as f:
+    #    pickle.dump(R_dict, f)
+
+    # with open("param_dict_mini.pkl", "wb") as f:
+    #    pickle.dump(param_dict, f)
+
+    with open("param_dict_mini.pkl", "rb") as f:
         param_dict = pickle.load(f)
-    with open("R_dict.pkl", "rb") as f:
+    with open("R_dict_mini.pkl", "rb") as f:
         R_dict = pickle.load(f)
-    # hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
-    # print("Hyperparameters for WN:", hyperparam_list_WN)
-    # hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict, param_dict)
-    # print("Hyperparameters for GP:", hyperparam_list_GP)
+
+    intital_params_list = []
+    log_evidence_list = []
+    hyperparams_list = []
+
+    # hyperparams_list_WN_global, le_WN_global = get_hyperparams_WN_global(R_dict, param_dict)
+    # hyperparams_list_GP_global, le_GP_global = get_hyperparams_GP_global(R_dict, param_dict)
+    # hyperparam_list_GPC_global, le_GPC_global = get_hyperparams_GPC_global(R_dict, param_dict)
+
+    hyperparams_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
+    hyperparams_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict, param_dict)
     hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(
         R_dict, param_dict
     )
+
+    print("############ Global hyperparameters ############")
+    print("Hyperparameters for WN:", hyperparams_list_WN)
+    print("Log evidence for WN:", le_WN)
+    print("Hyperparameters for GP:", hyperparams_list_GP)
+    print("Log evidence for GP:", le_GP)
     print("Hyperparameters for GPC:", hyperparam_list_GPC)
+    print("Log evidence for GPC:", le_GPC)
 
-    # with open("tuned_params_WN.pkl", "wb") as f:
-    #    pickle.dump(tuned_params_WN, f)
+    print("############ Scipy minimize hyperparameters ############")
+    print("Hyperparameters for WN:", hyperparams_list_WN_global)
+    print("Log evidence for WN:", le_WN_global)
+    print("Hyperparameters for GP:", hyperparams_list_GP_global)
+    print("Log evidence for GP:", le_GP_global)
+    print("Hyperparameters for GPC:", hyperparam_list_GPC_global)
+    print("Log evidence for GPC:", le_GPC_global)
 
-    # with open("tuned_params_GP.pkl", "wb") as f:
-    #    pickle.dump(tuned_params_GP, f)
-
-    # with open("tuned_params_GPC.pkl", "wb") as f:
-    #    pickle.dump(tuned_params_GPC, f)
+    # for i, initial_params in enumerate(initial_params_list):
+    #    print("Initial params:", initial_params)
+    #    hyperparam_list_GPC, le_GPC, tuned_params_GPC  = get_hyperparams_GPC(R_dict, param_dict, initial_params)
+    #    print("Hyperparams GPC:", hyperparam_list_GPC)
+    #    print("Log evidence GPC:", le_GPC)
+    #    intital_params_list.append(initial_params)
+    #    log_evidence_list.append(le_GPC)
+    #    hyperparams_list.append(hyperparam_list_GPC)
