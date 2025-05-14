@@ -10,18 +10,16 @@ authors = [
 ]
 description = "Bayesian Gaussian Process fitting of quasinormal modes to CCE ringdown waveforms"
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
 requires-python = ">=3.8"
 dependencies = [
     "numpy",
     "scipy",
     "matplotlib",
     "jax",
-    "pickle",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 
