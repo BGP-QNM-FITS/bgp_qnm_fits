@@ -9,6 +9,7 @@ import time
 
 from bgp_qnm_fits.utils import *
 from bgp_qnm_fits.GP_funcs import *
+from bgp_qnm_fits.base_fit import Base_BGP_fit
 
 
 class BGP_fit(Base_BGP_fit):
@@ -20,6 +21,7 @@ class BGP_fit(Base_BGP_fit):
         quantiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99],
         **kwargs,
     ):
+        
         super().__init__(*args, **kwargs)
 
         self.key = jax.random.PRNGKey(int(time.time()))
@@ -28,7 +30,7 @@ class BGP_fit(Base_BGP_fit):
 
         if isinstance(t0, (float, int)):
             self.fit = self.get_fit_at_t0(t0)
-        elif isinstance(t0, (list, tuple)):
+        elif isinstance(t0, (list, tuple, np.ndarray)):
             self.fits = []
             for t0_val in t0:
                 self.fits.append(self.get_fit_at_t0(t0_val))
@@ -153,9 +155,8 @@ class BGP_fit(Base_BGP_fit):
             ]
         )
 
-        C = []
-        for i in range(len(self.modes)):
-            C.append(mean_vector[2 * i] + 1j * mean_vector[2 * i + 1])
+        # Create an array of complex values
+        C = mean_vector[:2*len(self.modes):2] + 1j * mean_vector[1:2*len(self.modes):2]
 
         # Evaluate the model
         model = jnp.einsum("ij,j->i", a, C)

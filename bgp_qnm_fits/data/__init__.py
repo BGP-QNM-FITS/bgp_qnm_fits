@@ -5,7 +5,7 @@ import pickle
 DATA_DIR = os.path.dirname(__file__)
 WN_PARAMS_PATH = os.path.join(DATA_DIR, "tuned_params_WN.pkl")
 GP_PARAMS_PATH = os.path.join(DATA_DIR, "tuned_params_GP.pkl")
-GPc_PARAMS_PATH = os.path.join(DATA_DIR, "tuned_params_GPc.pkl")
+GPc_PARAMS_PATH = os.path.join(DATA_DIR, "tuned_params_GPC.pkl")
 
 
 # Load the data files
