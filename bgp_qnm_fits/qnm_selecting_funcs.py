@@ -61,7 +61,9 @@ def get_significance(marginal_mean, marginal_covariance):
     #    return np.log(1 - np.exp(-0.5 * np.dot(b_a, b_a)))
 
 
-def get_significance_list(qnm_list, mean_vector, fisher_matrix, include_chif=False, include_Mf=False):
+def get_significance_list(
+    qnm_list, mean_vector, fisher_matrix, include_chif=False, include_Mf=False
+):
     """This computes the significance of the marginalised parameters in qnm_list_new.
 
     Inputs:
@@ -104,7 +106,9 @@ def find_worst_qnm(qnm_list, mean_vector, fisher_matrix):
     """Takes a list of QNMs and returns the QNM with the lowest significance and corresponding
     significance value."""
     sig_list = get_significance_list(qnm_list, mean_vector, fisher_matrix)
-    filtered_qnm_sig_pairs = [(qnm, sig) for qnm, sig in zip(qnm_list, sig_list) if not np.isnan(sig)]
+    filtered_qnm_sig_pairs = [
+        (qnm, sig) for qnm, sig in zip(qnm_list, sig_list) if not np.isnan(sig)
+    ]
     filtered_qnm_sig_pairs.sort(key=lambda pair: pair[1])
     worst_qnm, worst_sig = filtered_qnm_sig_pairs[0]
     return worst_sig, worst_qnm
@@ -126,7 +130,9 @@ def recursive_qnm_finder(qnm_list_initial, b_vec, fisher_matrix, threshold_sig=n
         fisher_matrix_reduced = fisher_matrix_init[mask][:, mask]
         b_vec_reduced = b_vec_init[mask]
         mean_vector_reduced = np.linalg.solve(fisher_matrix_reduced, b_vec_reduced)
-        sig_val, worst_qnm = find_worst_qnm(qnm_list_reduced, mean_vector_reduced, fisher_matrix_reduced)
+        sig_val, worst_qnm = find_worst_qnm(
+            qnm_list_reduced, mean_vector_reduced, fisher_matrix_reduced
+        )
         if sig_val < threshold_sig:
             qnm_list_reduced.remove(worst_qnm)
             print(f"{worst_qnm} removed with significance {sig_val}")
@@ -134,7 +140,9 @@ def recursive_qnm_finder(qnm_list_initial, b_vec, fisher_matrix, threshold_sig=n
     return qnm_list_reduced
 
 
-def recursive_qnm_finder_ordered(qnm_list_initial, b_vec, fisher_matrix, qnm_order, threshold_sig=np.log(0.9)):
+def recursive_qnm_finder_ordered(
+    qnm_list_initial, b_vec, fisher_matrix, qnm_order, threshold_sig=np.log(0.9)
+):
     fisher_matrix_init = fisher_matrix.copy()
     b_vec_init = b_vec.copy()
     param_list_init = [qnm for qnm in qnm_list_initial for _ in range(2)]
@@ -189,8 +197,8 @@ def get_qnm_timeseries(
     After each timestep, modes that fall below the significance threshold are removed from the
     model. Returns a list of lists of QNMs at each timestep.
 
-    If an ordering is given (e.g. overtones highest to lowest), qnms are considered in that order.
-    If the mode that is highest in the list does not fall below significance, then the time is stepped
+    If an ordering is given (e.g. overtones highest to lowest), qnms are considered in that order. 
+    If the mode that is highest in the list does not fall below significance, then the time is stepped 
     forward regardless of the significance of the other modes.
 
     """
@@ -214,7 +222,9 @@ def get_qnm_timeseries(
             spherical_modes=spherical_modes,
         )
         if qnm_ordering is None:
-            qnm_list_new = recursive_qnm_finder(qnm_list_new, fit["b_vector"], fit["fisher_matrix"], threshold_sig)
+            qnm_list_new = recursive_qnm_finder(
+                qnm_list_new, fit["b_vector"], fit["fisher_matrix"], threshold_sig
+            )
         else:
             qnm_list_new, qnm_order_reduced = recursive_qnm_finder_ordered(
                 qnm_list_new,
@@ -226,7 +236,9 @@ def get_qnm_timeseries(
 
         qnm_list_timeseries.append(qnm_list_new)
 
-        if qnm_order_reduced == [] or qnm_list_new == []:  # TODO: This can actually break when there's only one element
+        if (
+            qnm_order_reduced == [] or qnm_list_new == []
+        ):  # TODO: This can actually break when there's only one element
             break
 
     return qnm_list_timeseries
