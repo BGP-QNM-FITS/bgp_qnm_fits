@@ -1,6 +1,7 @@
 import qnmfits
 import jax
 import jax.numpy as jnp
+from scipy.optimize import minimize
 from functools import partial
 
 jax.config.update("jax_platform_name", "cpu")
@@ -60,25 +61,21 @@ class Base_BGP_fit:
         self.include_Mf = include_Mf
         self.params = self._get_params()
         self.params_length = len(self.params)
-        self.Mf = Mf
-        self.chif = chif
         self.kernel_param_dict = kernel_param_dict
         self.kernel = kernel
         self.spherical_modes = spherical_modes or list(data_dict.keys())
         self.spherical_modes_length = len(self.spherical_modes)
         self.data_array = jnp.array([data_dict[mode] for mode in self.spherical_modes])
 
-        self.frequencies = jnp.array([self._get_frequency(mode) for mode in self.modes])
+        # Note that the default is to set the ABD mass and spin as attributes; this is overridden in
+        # the subclass if the user wants to use the nonlinear mass and spin.
 
-        self.frequency_derivatives = jnp.array([self._get_domega_dchif(mode) for mode in self.modes])
+        self.Mf_abd = Mf
+        self.chif_abd = chif
 
-        self.mixing_coefficients = jnp.array(
-            [self._get_mixing(mode, sph_mode) for sph_mode in self.spherical_modes for mode in self.modes]
-        ).reshape(len(self.spherical_modes), len(self.modes))
-
-        self.mixing_derivatives = jnp.array(
-            [self._get_dmu_dchif(mode, sph_mode) for sph_mode in self.spherical_modes for mode in self.modes]
-        ).reshape(len(self.spherical_modes), len(self.modes))
+        self.frequencies, self.frequency_derivatives, self.mixing_coefficients, self.mixing_derivatives = (
+            self._get_mixing_frequency_terms(self.chif_abd, self.Mf_abd)
+        )
 
         # Check if the kernel is diagonal
         test_times = jnp.linspace(0, 10, 10)
@@ -127,7 +124,45 @@ class Base_BGP_fit:
             params.append("Mf")
         return params
 
-    def _get_frequency(self, mode, chif=None, Mf=None):
+    def _mf_chif_mismatch(self, chif_mf, t0, T, spherical_modes):
+        """
+        Compute the mismatch for given mass and spin parameters.
+        """
+        chif_mag, Mf = chif_mf
+        best_fit = qnmfits.multimode_ringdown_fit(
+            self.times,
+            self.data_dict,
+            self.modes,
+            Mf,
+            chif_mag,
+            t0,
+            t0_method="closest",
+            T=T,
+            spherical_modes=spherical_modes,
+        )
+        return best_fit["mismatch"]
+
+    def _get_nonlinear_mf_chif(self, t0, T, spherical_modes, chif_ref, Mf_ref):
+        """
+        Compute mass and spin parameters for each t0 using least-squares and mismatch minimization.
+        """
+        # TODO: Optimise this
+        initial_params = (chif_ref, Mf_ref)
+        Mf_RANGE = (Mf_ref * 0.5, Mf_ref * 1.5)
+        chif_mag_RANGE = (0.1, 0.99)
+        bounds = (chif_mag_RANGE, Mf_RANGE)
+
+        result = minimize(
+            self._mf_chif_mismatch,
+            initial_params,
+            args=(t0, T, spherical_modes),
+            method="Nelder-Mead",
+            bounds=bounds,
+        )
+
+        return result.x[0], result.x[1]
+
+    def _get_frequency(self, mode, chif, Mf):
         """
         Compute the frequency for a given QNM mode and spin.
 
@@ -138,9 +173,6 @@ class Base_BGP_fit:
         Returns:
             complex: Frequency of the QNM.
         """
-        # This could be replaced with custom function
-        chif = chif if chif is not None else self.chif
-        Mf = Mf if Mf is not None else self.Mf
         return sum(
             [
                 qnmfits.qnm.omega(ell, m, n, sign, chif, Mf, s=-2)
@@ -148,7 +180,7 @@ class Base_BGP_fit:
             ]
         )
 
-    def _get_mixing(self, mode, sph_mode, chif=None, Mf=None):
+    def _get_mixing(self, mode, sph_mode, chif):
         """
         Compute the mixing coefficient for a given QNM mode.
 
@@ -159,8 +191,6 @@ class Base_BGP_fit:
         Returns:
             complex: Mixing coefficient of the QNM. Or, if quadratic or cubic, 1.
         """
-        chif = chif if chif is not None else self.chif
-        Mf = Mf if Mf is not None else self.Mf
         ell, m = sph_mode
         if len(mode) == 4:
             lp, mp, nprime, sign = mode
@@ -170,7 +200,7 @@ class Base_BGP_fit:
         elif len(mode) == 12:
             return 1 + 0j
 
-    def _get_ls_amplitudes(self, t0, t0_method="closest"):
+    def _get_ls_amplitudes(self, t0, Mf, chif, t0_method="closest"):
         """
         Compute least-squares amplitudes and reference parameters.
         """
@@ -179,8 +209,8 @@ class Base_BGP_fit:
             self.times,
             self.data_dict,
             modes=self.modes,
-            Mf=self.Mf,
-            chif=self.chif,
+            Mf=Mf,
+            chif=chif,
             t0=t0,
             T=self.T,
             spherical_modes=self.spherical_modes,
@@ -193,11 +223,22 @@ class Base_BGP_fit:
         # Construct the reference parameters
         ref_params = jnp.concatenate([jnp.stack([jnp.real(C_0), jnp.imag(C_0)], axis=-1).reshape(-1)])
         if self.include_chif:
-            ref_params = jnp.append(ref_params, self.chif)
+            ref_params = jnp.append(ref_params, chif)
         if self.include_Mf:
-            ref_params = jnp.append(ref_params, self.Mf)
+            ref_params = jnp.append(ref_params, Mf)
 
         return C_0, ref_params
+
+    def _get_mixing_frequency_terms(self, chif, Mf):
+        frequencies = jnp.array([self._get_frequency(mode, chif, Mf) for mode in self.modes])
+        frequency_derivatives = jnp.array([self._get_domega_dchif(mode, chif, Mf) for mode in self.modes])
+        mixing_coefficients = jnp.array(
+            [self._get_mixing(mode, sph_mode, chif) for sph_mode in self.spherical_modes for mode in self.modes]
+        ).reshape(len(self.spherical_modes), len(self.modes))
+        mixing_derivatives = jnp.array(
+            [self._get_dmu_dchif(mode, sph_mode, chif) for sph_mode in self.spherical_modes for mode in self.modes]
+        ).reshape(len(self.spherical_modes), len(self.modes))
+        return frequencies, frequency_derivatives, mixing_coefficients, mixing_derivatives
 
     def get_inverse(self, matrix, epsilon=1e-10):
         vals, vecs = jnp.linalg.eigh(matrix)
@@ -217,79 +258,104 @@ class Base_BGP_fit:
             dtype=jnp.float64,
         )
 
-    def _get_exponential_terms(self, analysis_times):
+    def _get_exponential_terms(self, analysis_times, frequencies):
         """Compute the exponential terms for the QNM fitting."""
-        return jnp.array([jnp.exp(-1j * self.frequencies[i] * analysis_times) for i in range(self.modes_length)])
+        return jnp.array([jnp.exp(-1j * frequencies[i] * analysis_times) for i in range(self.modes_length)])
 
-    def _get_domega_dchif(self, mode, delta=1.0e-3):
+    def _get_domega_dchif(self, mode, chif, Mf, delta=1.0e-3):
         """Compute domega/dchif for a given QNM."""
-        omega_plus = self._get_frequency(mode, chif=self.chif + delta)
-        omega_minus = self._get_frequency(mode, chif=self.chif - delta)
+        omega_plus = self._get_frequency(mode, chif + delta, Mf)
+        omega_minus = self._get_frequency(mode, chif - delta, Mf)
         return (omega_plus - omega_minus) / (2 * delta)
 
-    def _get_dmu_dchif(self, mode, sph_mode, delta=0.01):
+    def _get_dmu_dchif(self, mode, sph_mode, chif, delta=0.01):
         """Compute dmu/dchif for a given QNM."""
-        mu_plus = self._get_mixing(mode, sph_mode, chif=self.chif + delta)
-        mu_minus = self._get_mixing(mode, sph_mode, chif=self.chif - delta)
+        mu_plus = self._get_mixing(mode, sph_mode, chif=chif + delta)
+        mu_minus = self._get_mixing(mode, sph_mode, chif=chif - delta)
         return (mu_plus - mu_minus) / (2 * delta)
 
-    def re_amplitude_model_term_generator(self, exponential_terms):
+    def _get_re_amplitude_term(self, exponential_terms, mixing_coefficients):
         """Computes the real part of the amplitude model term for a given set of QNMs. Returns a
         len(spherical_modes) x len(t_list) array."""
-        return jnp.einsum("pt,sp->pst", exponential_terms, self.mixing_coefficients)
+        return jnp.einsum("pt,sp->pst", exponential_terms, mixing_coefficients)
 
-    def im_amplitude_model_term_generator(self, exponential_terms, i):
+    def _get_im_amplitude_term(self, exponential_terms, mixing_coefficients):
         """Computes the imaginary part of the amplitude model term for a given set of QNMs. Returns a
         len(spherical_modes) x len(t_list) array."""
-        return jnp.einsum("pt,sp->pst", exponential_terms, self.mixing_coefficients)
+        return jnp.einsum("pt,sp->pst", exponential_terms, mixing_coefficients)
 
-    def mass_model_term_generator(self, analysis_times, ls_amplitudes, exponential_terms):
+    def _get_mass_term(self, analysis_times, ls_amplitudes, frequencies, exponential_terms, mixing_coefficients, Mf):
         """Computes the Mf term for a given set of QNMs. Returns a len(spherical_modes) x len(t_list)
         array."""
         return jnp.einsum(
             "p,sp,pt->st",
-            1j * self.frequencies / self.Mf * ls_amplitudes,
-            self.mixing_coefficients,
+            1j * frequencies / Mf * ls_amplitudes,
+            mixing_coefficients,
             exponential_terms * analysis_times,
         )
 
-    def chif_model_term_generator(self, analysis_times, ls_amplitudes, exponential_terms):
+    def _get_chif_term(
+        self,
+        analysis_times,
+        ls_amplitudes,
+        exponential_terms,
+        mixing_coefficients,
+        mixing_derivatives,
+        frequency_derivatives,
+    ):
         """Computes the chif_mag term for a given set of QNMs. Returns a len(spherical_modes) x
         len(t_list) array."""
         return jnp.einsum(
             "p,pt,spt->st",
             ls_amplitudes,
             exponential_terms,
-            self.mixing_derivatives[:, :, None]
+            mixing_derivatives[:, :, None]
             - 1j
-            * self.mixing_coefficients[:, :, None]
+            * mixing_coefficients[:, :, None]
             * analysis_times[None, None, :]
-            * self.frequency_derivatives[None, :, None],
+            * frequency_derivatives[None, :, None],
         )
 
-    def const_model_term_generator(self, analysis_times, ls_amplitudes, exponential_terms):
+    def get_const_term(self, ls_amplitudes, exponential_terms, mixing_coefficients):
         """Computes the H_* term for a given set of QNMs."""
-        return jnp.einsum("p,sp,pt->st", ls_amplitudes, self.mixing_coefficients, exponential_terms)
+        return jnp.einsum("p,sp,pt->st", ls_amplitudes, mixing_coefficients, exponential_terms)
 
-    @partial(jax.jit, static_argnames=["self"])
-    def get_model_terms(self, analysis_times, ls_amplitudes, exponential_terms):
+    # @partial(jax.jit, static_argnames=["self"]) - can't do this now in case Mf is updated!
+    def get_model_terms(
+        self,
+        model_times,
+        ls_amplitudes,
+        exponential_terms,
+        mixing_coefficients,
+        mixing_derivatives,
+        frequencies,
+        frequency_derivatives,
+        Mf,
+    ):
         sph_matrix = jnp.zeros(
-            (self.params_length, self.spherical_modes_length, len(analysis_times)),
+            (self.params_length, self.spherical_modes_length, len(model_times)),
             dtype=jnp.complex128,
         )
 
-        re_model_terms = self.re_amplitude_model_term_generator(exponential_terms)
+        re_model_terms = self._get_re_amplitude_term(exponential_terms, mixing_coefficients)
         sph_matrix = sph_matrix.at[: 2 * self.modes_length : 2].set(re_model_terms)
         sph_matrix = sph_matrix.at[1 : 2 * self.modes_length : 2].set(1j * re_model_terms)
 
         if self.include_chif:
             sph_matrix = sph_matrix.at[-1 if not self.include_Mf else -2].set(
-                self.chif_model_term_generator(analysis_times, ls_amplitudes, exponential_terms)
+                self._get_chif_term(
+                    model_times,
+                    ls_amplitudes,
+                    exponential_terms,
+                    mixing_coefficients,
+                    mixing_derivatives,
+                    frequency_derivatives,
+                )
             )
 
         if self.include_Mf:
             sph_matrix = sph_matrix.at[-1].set(
-                self.mass_model_term_generator(analysis_times, ls_amplitudes, exponential_terms)
+                self._get_mass_term(model_times, ls_amplitudes, frequencies, exponential_terms, mixing_coefficients, Mf)
             )
 
         return sph_matrix
