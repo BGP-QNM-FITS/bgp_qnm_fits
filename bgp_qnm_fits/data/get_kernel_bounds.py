@@ -164,13 +164,9 @@ def get_parameters():
         print(sim_id)
 
         sim_main = CCE.SXS_CCE(sim_id, lev="Lev5", radius="R2")
-        sim_lower = CCE.SXS_CCE(
-            sim_id, lev="Lev4", radius="R2"
-        )  # This has the smallest residual relative to sim_main
+        sim_lower = CCE.SXS_CCE(sim_id, lev="Lev4", radius="R2")  # This has the smallest residual relative to sim_main
 
-        R_lm = get_residuals(
-            sim_main, sim_lower, TRAINING_START_TIME, TRAINING_END_TIME, dt=TIME_STEP
-        )
+        R_lm = get_residuals(sim_main, sim_lower, TRAINING_START_TIME, TRAINING_END_TIME, dt=TIME_STEP)
 
         params_lm = get_params(
             R_lm,
@@ -379,9 +375,7 @@ if __name__ == "__main__":
 
     hyperparams_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
     hyperparams_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict, param_dict)
-    hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(
-        R_dict, param_dict
-    )
+    hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict, param_dict)
 
     print("############ Global hyperparameters ############")
     print("Hyperparameters for WN:", hyperparams_list_WN)

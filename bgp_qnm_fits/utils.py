@@ -66,12 +66,7 @@ def get_time_shift(sim1, sim2, modes=None, delta=0.0001, alpha=0.1, t0=-100, T=1
     h2_int = sim_interpolator_data(sim2_data_masked, sim2_times_masked, new_times)
 
     overlap = np.sum(
-        [
-            np.fft.ifft(
-                np.fft.fft(h1_int[mode]) * np.conjugate(np.fft.fft(h2_int[mode]))
-            )
-            for mode in modes
-        ],
+        [np.fft.ifft(np.fft.fft(h1_int[mode]) * np.conjugate(np.fft.fft(h2_int[mode]))) for mode in modes],
         axis=0,
     )
 
@@ -150,7 +145,4 @@ def log_likelihood(data_array, model_array, inv_covariance_matrix):
     # TODO Check this is valid (why is there a small imaginary component?)
 
     residual = data_array - model_array
-    return np.real(
-        -0.5
-        * np.einsum("bi,bj,bij->", np.conj(residual), residual, inv_covariance_matrix)
-    )
+    return np.real(-0.5 * np.einsum("bi,bj,bij->", np.conj(residual), residual, inv_covariance_matrix))

@@ -2,14 +2,12 @@ import numpy as np
 import qnmfits
 import jax
 import jax.numpy as jnp
+import time
+
+from bgp_qnm_fits.base_fit import Base_BGP_fit
 
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
-import time
-
-from bgp_qnm_fits.utils import *
-from bgp_qnm_fits.GP_funcs import *
-from bgp_qnm_fits.base_fit import Base_BGP_fit
 
 
 class BGP_fit(Base_BGP_fit):
@@ -21,7 +19,7 @@ class BGP_fit(Base_BGP_fit):
         quantiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99],
         **kwargs,
     ):
-        
+
         super().__init__(*args, **kwargs)
 
         self.key = jax.random.PRNGKey(int(time.time()))
@@ -102,24 +100,17 @@ class BGP_fit(Base_BGP_fit):
         # Interpolate quantiles
         quantile_values = np.empty((len(quantiles), values.shape[1]))
         for i in range(values.shape[1]):
-            quantile_values[:, i] = np.interp(
-                quantiles, cumulative_weights[:, i], sorted_values[:, i]
-            )
+            quantile_values[:, i] = np.interp(quantiles, cumulative_weights[:, i], sorted_values[:, i])
 
         return quantile_values
 
-    def get_amplitude_quantiles(
-        self, sample_amplitudes, quantiles, samples_weights=None
-    ):
+    def get_amplitude_quantiles(self, sample_amplitudes, quantiles, samples_weights=None):
         """
         Compute the quantiles of the amplitude distribution.
         """
-        weighted_abs_amplitude_quantiles = self.weighted_quantile(
-            sample_amplitudes, quantiles, weights=samples_weights
-        )
+        weighted_abs_amplitude_quantiles = self.weighted_quantile(sample_amplitudes, quantiles, weights=samples_weights)
         weighted_abs_amplitude_quantiles_dict = {
-            quantiles: weighted_abs_amplitude_quantiles[i]
-            for i, quantiles in enumerate(quantiles)
+            quantiles: weighted_abs_amplitude_quantiles[i] for i, quantiles in enumerate(quantiles)
         }
         return weighted_abs_amplitude_quantiles_dict
 
@@ -138,60 +129,42 @@ class BGP_fit(Base_BGP_fit):
             Mf = self.Mf
 
         frequencies = qnmfits.qnm.omega_list(self.modes, chif, Mf=Mf)
-        indices_lists = [
-            [lm_mode + mode for mode in self.modes] for lm_mode in self.spherical_modes
-        ]
+        indices_lists = [[lm_mode + mode for mode in self.modes] for lm_mode in self.spherical_modes]
         mu_lists = [qnmfits.qnm.mu_list(indices, chif) for indices in indices_lists]
 
         a = np.concatenate(
             [
                 np.array(
-                    [
-                        mu_lists[i][j] * np.exp(-1j * frequencies[j] * analysis_times)
-                        for j in range(len(frequencies))
-                    ]
+                    [mu_lists[i][j] * np.exp(-1j * frequencies[j] * analysis_times) for j in range(len(frequencies))]
                 ).T
                 for i in range(len(self.spherical_modes))
             ]
         )
 
         # Create an array of complex values
-        C = mean_vector[:2*len(self.modes):2] + 1j * mean_vector[1:2*len(self.modes):2]
+        C = mean_vector[: 2 * len(self.modes) : 2] + 1j * mean_vector[1 : 2 * len(self.modes) : 2]
 
         # Evaluate the model
         model = jnp.einsum("ij,j->i", a, C)
 
         model_array = jnp.array(
-            [
-                model[i * len(analysis_times) : (i + 1) * len(analysis_times)]
-                for i in range(self.spherical_modes_length)
-            ]
+            [model[i * len(analysis_times) : (i + 1) * len(analysis_times)] for i in range(self.spherical_modes_length)]
         )
 
         return model_array
 
     def get_model_linear(self, constant_term, mean_vector, ref_params, model_terms):
-        return constant_term + jnp.einsum(
-            "p,pst->st", mean_vector - ref_params, model_terms
-        )
+        return constant_term + jnp.einsum("p,pst->st", mean_vector - ref_params, model_terms)
 
     def get_fit_at_t0(self, t0):
         analysis_times, masked_data_array = self._mask_data(t0)
         model_times = analysis_times - t0
         exponential_terms = self._get_exponential_terms(model_times)
         ls_amplitudes, ref_params = self._get_ls_amplitudes(t0)
-        model_terms = self.get_model_terms(
-            model_times, ls_amplitudes, exponential_terms
-        )
-        constant_term = self.const_model_term_generator(
-            analysis_times, ls_amplitudes, exponential_terms
-        )
-        inverse_noise_covariance_matrix = self.get_inverse_noise_covariance_matrix(
-            analysis_times
-        )
-        fisher_matrix = self.get_fisher_matrix(
-            model_times, model_terms, inverse_noise_covariance_matrix
-        )
+        model_terms = self.get_model_terms(model_times, ls_amplitudes, exponential_terms)
+        constant_term = self.const_model_term_generator(analysis_times, ls_amplitudes, exponential_terms)
+        inverse_noise_covariance_matrix = self.get_inverse_noise_covariance_matrix(analysis_times)
+        fisher_matrix = self.get_fisher_matrix(model_times, model_terms, inverse_noise_covariance_matrix)
         b_vector = self.get_b_vector(
             masked_data_array,
             constant_term,
@@ -212,15 +185,9 @@ class BGP_fit(Base_BGP_fit):
             samples_weights,
         ) = self.get_amplitude_phase(mean_vector, samples)
 
-        weighted_quantiles_dict = self.get_amplitude_quantiles(
-            sample_amplitudes, self.quantiles, samples_weights
-        )
-        unweighted_quantiles_dict = self.get_amplitude_quantiles(
-            sample_amplitudes, self.quantiles
-        )
-        model_array_linear = self.get_model_linear(
-            constant_term, mean_vector, ref_params, model_terms
-        )
+        weighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles, samples_weights)
+        unweighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles)
+        model_array_linear = self.get_model_linear(constant_term, mean_vector, ref_params, model_terms)
         model_array_nonlinear = self.get_model_nonlinear(mean_vector, analysis_times)
 
         fit = {

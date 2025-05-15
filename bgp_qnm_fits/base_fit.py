@@ -1,20 +1,19 @@
 import qnmfits
 import jax
 import jax.numpy as jnp
+from functools import partial
 
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 
-from functools import partial
-
 
 class Base_BGP_fit:
-
     """
 
-    The base class for performing Bayesian Quasinormal Mode (QNM) fitting using Gaussian Processes (GP). This contains
-    the core methods and attributes needed for the fitting process.
-    It is designed to be subclassed for specific fitting implementations (for either a single t0 or a list of t0s), such as BGP_fit.
+    The base class for performing Bayesian Quasinormal Mode (QNM) fitting using Gaussian Processes (GP).
+    This contains the core methods and attributes needed for the fitting process.
+    It is designed to be subclassed for specific fitting implementations
+    (for either a single t0 or a list of t0s), such as BGP_fit.
 
     """
 
@@ -71,36 +70,22 @@ class Base_BGP_fit:
 
         self.frequencies = jnp.array([self._get_frequency(mode) for mode in self.modes])
 
-        self.frequency_derivatives = jnp.array(
-            [self._get_domega_dchif(mode) for mode in self.modes]
-        )
+        self.frequency_derivatives = jnp.array([self._get_domega_dchif(mode) for mode in self.modes])
 
         self.mixing_coefficients = jnp.array(
-            [
-                self._get_mixing(mode, sph_mode)
-                for sph_mode in self.spherical_modes
-                for mode in self.modes
-            ]
+            [self._get_mixing(mode, sph_mode) for sph_mode in self.spherical_modes for mode in self.modes]
         ).reshape(len(self.spherical_modes), len(self.modes))
 
         self.mixing_derivatives = jnp.array(
-            [
-                self._get_dmu_dchif(mode, sph_mode)
-                for sph_mode in self.spherical_modes
-                for mode in self.modes
-            ]
+            [self._get_dmu_dchif(mode, sph_mode) for sph_mode in self.spherical_modes for mode in self.modes]
         ).reshape(len(self.spherical_modes), len(self.modes))
 
         # Check if the kernel is diagonal
         test_times = jnp.linspace(0, 10, 10)
         test_kernel_matrix = jnp.array(
-            self.kernel(
-                jnp.array(test_times), **self.kernel_param_dict[self.spherical_modes[0]]
-            )
+            self.kernel(jnp.array(test_times), **self.kernel_param_dict[self.spherical_modes[0]])
         )
-        self.is_GP_diagonal = jnp.allclose(
-            test_kernel_matrix, jnp.diag(jnp.diagonal(test_kernel_matrix))
-        )
+        self.is_GP_diagonal = jnp.allclose(test_kernel_matrix, jnp.diag(jnp.diagonal(test_kernel_matrix)))
 
         # print("##################### Checks #####################")
         # print("Is kernel diagonal?", self.is_GP_diagonal)
@@ -206,9 +191,7 @@ class Base_BGP_fit:
         C_0 = jnp.array(ls_fit["C"], dtype=jnp.complex128)
 
         # Construct the reference parameters
-        ref_params = jnp.concatenate(
-            [jnp.stack([jnp.real(C_0), jnp.imag(C_0)], axis=-1).reshape(-1)]
-        )
+        ref_params = jnp.concatenate([jnp.stack([jnp.real(C_0), jnp.imag(C_0)], axis=-1).reshape(-1)])
         if self.include_chif:
             ref_params = jnp.append(ref_params, self.chif)
         if self.include_Mf:
@@ -222,20 +205,13 @@ class Base_BGP_fit:
         return jnp.einsum("ik, k, jk -> ij", vecs, 1 / vals, vecs)
 
     def compute_kernel_matrix(self, hyperparams, analysis_times):
-        return jnp.array(
-            self.kernel(jnp.array(analysis_times), **hyperparams)
-            + jnp.eye(len(analysis_times)) * 1e-13
-        )
+        return jnp.array(self.kernel(jnp.array(analysis_times), **hyperparams) + jnp.eye(len(analysis_times)) * 1e-13)
 
     @partial(jax.jit, static_argnames=["self"])
     def get_inverse_noise_covariance_matrix(self, analysis_times):
         return jnp.array(
             [
-                self.get_inverse(
-                    self.compute_kernel_matrix(
-                        self.kernel_param_dict[mode], analysis_times
-                    )
-                ).real
+                self.get_inverse(self.compute_kernel_matrix(self.kernel_param_dict[mode], analysis_times)).real
                 for mode in self.spherical_modes
             ],
             dtype=jnp.float64,
@@ -243,12 +219,7 @@ class Base_BGP_fit:
 
     def _get_exponential_terms(self, analysis_times):
         """Compute the exponential terms for the QNM fitting."""
-        return jnp.array(
-            [
-                jnp.exp(-1j * self.frequencies[i] * analysis_times)
-                for i in range(self.modes_length)
-            ]
-        )
+        return jnp.array([jnp.exp(-1j * self.frequencies[i] * analysis_times) for i in range(self.modes_length)])
 
     def _get_domega_dchif(self, mode, delta=1.0e-3):
         """Compute domega/dchif for a given QNM."""
@@ -272,9 +243,7 @@ class Base_BGP_fit:
         len(spherical_modes) x len(t_list) array."""
         return jnp.einsum("pt,sp->pst", exponential_terms, self.mixing_coefficients)
 
-    def mass_model_term_generator(
-        self, analysis_times, ls_amplitudes, exponential_terms
-    ):
+    def mass_model_term_generator(self, analysis_times, ls_amplitudes, exponential_terms):
         """Computes the Mf term for a given set of QNMs. Returns a len(spherical_modes) x len(t_list)
         array."""
         return jnp.einsum(
@@ -284,9 +253,7 @@ class Base_BGP_fit:
             exponential_terms * analysis_times,
         )
 
-    def chif_model_term_generator(
-        self, analysis_times, ls_amplitudes, exponential_terms
-    ):
+    def chif_model_term_generator(self, analysis_times, ls_amplitudes, exponential_terms):
         """Computes the chif_mag term for a given set of QNMs. Returns a len(spherical_modes) x
         len(t_list) array."""
         return jnp.einsum(
@@ -300,13 +267,9 @@ class Base_BGP_fit:
             * self.frequency_derivatives[None, :, None],
         )
 
-    def const_model_term_generator(
-        self, analysis_times, ls_amplitudes, exponential_terms
-    ):
+    def const_model_term_generator(self, analysis_times, ls_amplitudes, exponential_terms):
         """Computes the H_* term for a given set of QNMs."""
-        return jnp.einsum(
-            "p,sp,pt->st", ls_amplitudes, self.mixing_coefficients, exponential_terms
-        )
+        return jnp.einsum("p,sp,pt->st", ls_amplitudes, self.mixing_coefficients, exponential_terms)
 
     @partial(jax.jit, static_argnames=["self"])
     def get_model_terms(self, analysis_times, ls_amplitudes, exponential_terms):
@@ -317,29 +280,21 @@ class Base_BGP_fit:
 
         re_model_terms = self.re_amplitude_model_term_generator(exponential_terms)
         sph_matrix = sph_matrix.at[: 2 * self.modes_length : 2].set(re_model_terms)
-        sph_matrix = sph_matrix.at[1 : 2 * self.modes_length : 2].set(
-            1j * re_model_terms
-        )
+        sph_matrix = sph_matrix.at[1 : 2 * self.modes_length : 2].set(1j * re_model_terms)
 
         if self.include_chif:
             sph_matrix = sph_matrix.at[-1 if not self.include_Mf else -2].set(
-                self.chif_model_term_generator(
-                    analysis_times, ls_amplitudes, exponential_terms
-                )
+                self.chif_model_term_generator(analysis_times, ls_amplitudes, exponential_terms)
             )
 
         if self.include_Mf:
             sph_matrix = sph_matrix.at[-1].set(
-                self.mass_model_term_generator(
-                    analysis_times, ls_amplitudes, exponential_terms
-                )
+                self.mass_model_term_generator(analysis_times, ls_amplitudes, exponential_terms)
             )
 
         return sph_matrix
 
-    def get_fisher_matrix(
-        self, analysis_times, model_terms, inverse_noise_covariance_matrix
-    ):
+    def get_fisher_matrix(self, analysis_times, model_terms, inverse_noise_covariance_matrix):
         """
 
         Compute the Fisher matrix.

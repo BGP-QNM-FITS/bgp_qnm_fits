@@ -1,11 +1,11 @@
 import numpy as np
 import jax
+import jax.numpy as jnp
+from bgp_qnm_fits.utils import get_inverse
 
 jax.config.update("jax_platform_name", "cpu")
-import jax.numpy as jnp
-
 jax.config.update("jax_enable_x64", True)
-from bgp_qnm_fits.utils import get_inverse
+
 
 def squared_exp_element(t1, t2, period):
     dist = jnp.abs(t1[:, None] - t2[None, :])
@@ -25,9 +25,7 @@ def smoothclip(t, sigma_min, sigma_max, sharpness):
 
 
 def softclip(t, sigma_min, sigma_max, sharpness):
-    return jnp.exp(
-        smoothclip(jnp.log(t), jnp.log(sigma_min), jnp.log(sigma_max), sharpness)
-    )
+    return jnp.exp(smoothclip(jnp.log(t), jnp.log(sigma_min), jnp.log(sigma_max), sharpness))
 
 
 def exponential_func(t, length_scale, t_s, sigma_max):
@@ -83,8 +81,7 @@ def kernel_c(analysis_times, **kwargs):
     return (
         (
             squared_exp_element(t1, t2, kwargs["period"]) ** kwargs["a"]
-            * periodic_kernel(t1, t2, kwargs["length_scale_2"], kwargs["period_2"])
-            ** (1 - kwargs["a"])
+            * periodic_kernel(t1, t2, kwargs["length_scale_2"], kwargs["period_2"]) ** (1 - kwargs["a"])
         )
         * new_func(
             t1,
@@ -106,20 +103,14 @@ def kernel_c(analysis_times, **kwargs):
 
 
 def compute_kernel_matrix(analysis_times, hyperparams, kernel):
-    return (
-        kernel(jnp.asarray(analysis_times), **hyperparams)
-        + jnp.eye(len(analysis_times)) * 1e-9
-    )
+    return kernel(jnp.asarray(analysis_times), **hyperparams) + jnp.eye(len(analysis_times)) * 1e-9
 
 
-def get_inv_GP_covariance_matrix(
-    analysis_times, kernel, tuned_param_dict, spherical_modes=None
-):
+def get_inv_GP_covariance_matrix(analysis_times, kernel, tuned_param_dict, spherical_modes=None):
     if spherical_modes is None:
         spherical_modes = tuned_param_dict.keys()
     kernel_dict = {
-        mode: compute_kernel_matrix(analysis_times, tuned_param_dict[mode], kernel)
-        for mode in spherical_modes
+        mode: compute_kernel_matrix(analysis_times, tuned_param_dict[mode], kernel) for mode in spherical_modes
     }
 
     return np.array(

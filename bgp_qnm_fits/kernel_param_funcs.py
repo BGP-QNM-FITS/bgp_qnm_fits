@@ -1,9 +1,10 @@
 import numpy as np
-import scipy 
-import time 
+import scipy
+import time
+import qnmfits
 
-from bgp_qnm_fits.GP_funcs import *
-from bgp_qnm_fits.utils import *
+from bgp_qnm_fits.utils import get_time_shift, sim_interpolator
+from bgp_qnm_fits.GP_funcs import compute_kernel_matrix
 from scipy.optimize import minimize
 
 
@@ -29,13 +30,10 @@ def get_residuals(sim_main, sim_lower, t0, T, dt=None):
 
     # Mask the data around the region of interest for param estimation and training
 
-    analysis_mask = (sim_main_interp.times >= t0 - 1e-9) & (
-        sim_main_interp.times < t0 + T - 1e-9
-    )
+    analysis_mask = (sim_main_interp.times >= t0 - 1e-9) & (sim_main_interp.times < t0 + T - 1e-9)
 
     return {
-        key: sim_main_interp.h[key][analysis_mask]
-        - sim_lower_interp.h[key][analysis_mask]
+        key: sim_main_interp.h[key][analysis_mask] - sim_lower_interp.h[key][analysis_mask]
         for key in sim_main_interp.h.keys()
     }
 
@@ -58,10 +56,7 @@ def get_params(
             "sigma_min": np.max(np.abs(R)) * epsilon,
             "t_s": ringdown_start,
             "sharpness": smoothness,
-            "length_scale": -1
-            / (
-                omega := qnmfits.qnm.omega(ell, m, 0, -1 if m < 0 else 1, chif_mag, Mf)
-            ).imag,
+            "length_scale": -1 / (omega := qnmfits.qnm.omega(ell, m, 0, -1 if m < 0 else 1, chif_mag, Mf)).imag,
             "period": (2 * np.pi) / omega.real,
             # For the complicated kernel only
             "length_scale_2": -1 / omega.imag,
@@ -86,12 +81,11 @@ def train_hyper_params(
     kernel,
     training_modes,
     mode_rules,
-    ):
-
+):
     """
-    This trains on the chosen data and modes to get the 
+    This trains on the chosen data and modes to get the
     hyperparameters and the tuned parameters.
-    
+
     """
 
     analysis_times = np.arange(
@@ -135,11 +129,7 @@ def train_hyper_params(
 
 def log_evidence(K, f):
     _, logdet = np.linalg.slogdet(K)
-    return -0.5 * (
-        np.dot(f, scipy.linalg.solve(K, f, assume_a="pos"))
-        + logdet
-        + len(f) * np.log(2 * np.pi)
-    )
+    return -0.5 * (np.dot(f, scipy.linalg.solve(K, f, assume_a="pos")) + logdet + len(f) * np.log(2 * np.pi))
 
 
 def get_new_params(param_dict, hyperparam_list, rule_dict):
@@ -152,13 +142,8 @@ def get_new_params(param_dict, hyperparam_list, rule_dict):
         elif rule == "replace":
             new_params[param] = hyperparam_list[i]
 
-    new_params["sigma_min"] = (
-        param_dict["sigma_min"]
-        * hyperparam_list[list(rule_dict.keys()).index("sigma_max")]
-    )
-    new_params.update(
-        {param: param_dict[param] for param in param_dict if param not in new_params}
-    )
+    new_params["sigma_min"] = param_dict["sigma_min"] * hyperparam_list[list(rule_dict.keys()).index("sigma_max")]
+    new_params.update({param: param_dict[param] for param in param_dict if param not in new_params})
 
     return new_params
 
@@ -173,7 +158,7 @@ def get_total_log_evidence(
     spherical_modes,
     mode_rules,
 ):
-    
+
     mode_filters = {
         "PE": lambda mode: mode[1] >= 0 and mode[1] % 2 == 0,
         "P": lambda mode: mode[1] >= 0,
@@ -187,9 +172,7 @@ def get_total_log_evidence(
 
     for sim_id, mode_rule in mode_rules.items():
 
-        spherical_mode_choice = [
-            mode for mode in spherical_modes if mode_filters[mode_rule](mode)
-        ]
+        spherical_mode_choice = [mode for mode in spherical_modes if mode_filters[mode_rule](mode)]
 
         for mode in spherical_mode_choice:
             param_dict = param_dict_sim_lm[sim_id][mode]
@@ -203,9 +186,7 @@ def get_total_log_evidence(
                 total_log_evidence += log_evidence_real + log_evidence_imag
 
     end_time = time.time()
-    print(
-        f"Total log evidence: {total_log_evidence}, Time taken: {end_time - start_time} seconds"
-    )
+    print(f"Total log evidence: {total_log_evidence}, Time taken: {end_time - start_time} seconds")
 
     return -total_log_evidence
 
@@ -241,12 +222,7 @@ def get_minimised_hyperparams(
     return result.x, result.fun
 
 
-def get_tuned_params(
-    param_dict_lm, hyperparams, hyperparam_rule_dict, spherical_modes=None
-):
-    if spherical_modes == None:
+def get_tuned_params(param_dict_lm, hyperparams, hyperparam_rule_dict, spherical_modes=None):
+    if spherical_modes is None:
         spherical_modes = param_dict_lm.keys()
-    return {
-        mode: get_new_params(param_dict_lm[mode], hyperparams, hyperparam_rule_dict)
-        for mode in spherical_modes
-    }
+    return {mode: get_new_params(param_dict_lm[mode], hyperparams, hyperparam_rule_dict) for mode in spherical_modes}
