@@ -17,6 +17,7 @@ dependencies = [
     "scipy",
     "matplotlib",
     "jax",
+    "qnmfits"
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

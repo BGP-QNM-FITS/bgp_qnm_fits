@@ -32,6 +32,8 @@ def get_residuals(sim_main, sim_lower, t0, T, dt=None):
 
     analysis_mask = (sim_main_interp.times >= t0 - 1e-9) & (sim_main_interp.times < t0 + T - 1e-9)
 
+    #TODO this is currently running from -10 to 90 M not 100! 
+
     return {
         key: sim_main_interp.h[key][analysis_mask] - sim_lower_interp.h[key][analysis_mask]
         for key in sim_main_interp.h.keys()
@@ -168,8 +170,6 @@ def get_total_log_evidence(
 
     total_log_evidence = 0
 
-    start_time = time.time()
-
     for sim_id, mode_rule in mode_rules.items():
 
         spherical_mode_choice = [mode for mode in spherical_modes if mode_filters[mode_rule](mode)]
@@ -184,9 +184,6 @@ def get_total_log_evidence(
             total_log_evidence += log_evidence_real + log_evidence_imag
             if mode_rule in {"P", "PE"}:
                 total_log_evidence += log_evidence_real + log_evidence_imag
-
-    end_time = time.time()
-    print(f"Total log evidence: {total_log_evidence}, Time taken: {end_time - start_time} seconds")
 
     return -total_log_evidence
 

@@ -103,7 +103,7 @@ def kernel_c(analysis_times, **kwargs):
 
 
 def compute_kernel_matrix(analysis_times, hyperparams, kernel):
-    return kernel(jnp.asarray(analysis_times), **hyperparams) + jnp.eye(len(analysis_times)) * 1e-9
+    return kernel(jnp.asarray(analysis_times), **hyperparams) + jnp.eye(len(analysis_times)) * 1e-10 # TODO jitter affects late time noise estimation > 0.1sigma_max**2
 
 
 def get_inv_GP_covariance_matrix(analysis_times, kernel, tuned_param_dict, spherical_modes=None):

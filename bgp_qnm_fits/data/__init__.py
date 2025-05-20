@@ -7,6 +7,7 @@ WN_PARAMS_PATH = os.path.join(DATA_DIR, "tuned_params_WN.pkl")
 GP_PARAMS_PATH = os.path.join(DATA_DIR, "tuned_params_GP.pkl")
 GPc_PARAMS_PATH = os.path.join(DATA_DIR, "tuned_params_GPC.pkl")
 
+RESIDUAL_PATH = os.path.join(DATA_DIR, "R_dict.pkl")
 
 # Load the data files
 def get_param_data(kernel_type):
@@ -21,6 +22,11 @@ def get_param_data(kernel_type):
             return pickle.load(f)
     else:
         raise ValueError("Invalid kernel type. Choose 'WN', 'GP', or 'GPc'.")
+
+
+def get_residual_data():
+    with open(RESIDUAL_PATH, "rb") as f:
+        return pickle.load(f)
 
 
 __all__ = ["get_param_data"]

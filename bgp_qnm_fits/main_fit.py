@@ -1,14 +1,16 @@
 import numpy as np
 import qnmfits
+import os 
+os.environ['JAX_PLATFORMS'] = 'cpu'
 import jax
 import jax.numpy as jnp
 import time
 
 from bgp_qnm_fits.base_fit import Base_BGP_fit
+from tqdm import tqdm
 
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
-
 
 class BGP_fit(Base_BGP_fit):
     def __init__(
@@ -16,6 +18,7 @@ class BGP_fit(Base_BGP_fit):
         *args,
         t0,
         use_nonlinear_params=False,
+        decay_corrected=False, 
         num_samples=10000,
         quantiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99],
         **kwargs,
@@ -27,12 +30,13 @@ class BGP_fit(Base_BGP_fit):
         self.num_samples = num_samples
         self.quantiles = quantiles
         self.use_nonlinear_params = use_nonlinear_params
+        self.decay_corrected = decay_corrected
 
         if isinstance(t0, (float, int)):
             self.fit = self.get_fit_at_t0(t0)
         elif isinstance(t0, (list, tuple, np.ndarray)):
             self.fits = []
-            for t0_val in t0:
+            for t0_val in tqdm(t0, desc="Fitting at t0 values"):
                 self.fits.append(self.get_fit_at_t0(t0_val))
         else:
             raise ValueError("t0 must be a float, int, list or tuple")
@@ -53,7 +57,7 @@ class BGP_fit(Base_BGP_fit):
         )
         return samples, key
 
-    def get_amplitude_phase(self, mean, samples):
+    def get_amplitude_phase(self, mean, samples, t0):
         """
         Compute the amplitude and phase from the samples.
         """
@@ -72,8 +76,27 @@ class BGP_fit(Base_BGP_fit):
         sample_amplitudes = jnp.sqrt(samples_re**2 + samples_im**2)
         sample_phases = jnp.arctan2(samples_im, samples_re)
 
+        if self.decay_corrected: 
+            decay_corrected_sample_amplitudes = jnp.zeros_like(sample_amplitudes)
+
+            chif_samples = samples[:, -2] 
+            Mf_samples = samples[:, -1]   
+
+            for i, mode in enumerate(self.modes):
+                decay_times = np.array([qnmfits.qnm.omega_list([mode], chif, Mf)[0].imag 
+                        for chif, Mf in zip(chif_samples, Mf_samples)])
+                correction_factors = jnp.exp(-decay_times * t0)
+                decay_corrected_sample_amplitudes = decay_corrected_sample_amplitudes.at[:, i].set(
+                sample_amplitudes[:, i] * correction_factors
+                )
+            sample_amplitudes = decay_corrected_sample_amplitudes
+
         log_samples = jnp.log(sample_amplitudes)
         samples_weights = jnp.exp(-jnp.sum(log_samples, axis=1))
+
+        neff = jnp.sum(samples_weights)**2 / jnp.sum(samples_weights**2)
+
+        #print(self.num_samples)
 
         return (
             mean_amplitude,
@@ -81,6 +104,7 @@ class BGP_fit(Base_BGP_fit):
             sample_amplitudes,
             sample_phases,
             samples_weights,
+            neff
         )
 
     def weighted_quantile(self, values, quantiles, weights=None):
@@ -164,13 +188,13 @@ class BGP_fit(Base_BGP_fit):
         model_times = analysis_times - t0
 
         if self.use_nonlinear_params:
-            chif, Mf = self._get_nonlinear_mf_chif(t0, self.T, self.spherical_modes, self.chif_abd, self.Mf_abd)
+            chif_ref, Mf_ref = self._get_nonlinear_mf_chif(t0, self.T, self.spherical_modes, self.chif_ref, self.Mf_ref)
             frequencies, frequency_derivatives, mixing_coefficients, mixing_derivatives = (
                 self._get_mixing_frequency_terms(chif, Mf)
             )
         else:
-            chif = self.chif_abd
-            Mf = self.Mf_abd
+            chif_ref = self.chif_ref
+            Mf_ref = self.Mf_ref
             frequencies, frequency_derivatives, mixing_coefficients, mixing_derivatives = (
                 self.frequencies,
                 self.frequency_derivatives,
@@ -179,7 +203,7 @@ class BGP_fit(Base_BGP_fit):
             )
 
         exponential_terms = self._get_exponential_terms(model_times, frequencies)
-        ls_amplitudes, ref_params = self._get_ls_amplitudes(t0, Mf, chif)
+        ls_amplitudes, ref_params = self._get_ls_amplitudes(t0, Mf_ref, chif_ref)
         model_terms = self.get_model_terms(
             model_times,
             ls_amplitudes,
@@ -188,7 +212,7 @@ class BGP_fit(Base_BGP_fit):
             mixing_derivatives,
             frequencies,
             frequency_derivatives,
-            Mf,
+            Mf_ref,
         )
         constant_term = self.get_const_term(ls_amplitudes, exponential_terms, mixing_coefficients)
 
@@ -212,15 +236,22 @@ class BGP_fit(Base_BGP_fit):
             sample_amplitudes,
             sample_phases,
             samples_weights,
-        ) = self.get_amplitude_phase(mean_vector, samples)
+            neff,
+        ) = self.get_amplitude_phase(mean_vector, samples, t0)
 
-        weighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles, samples_weights)
+        #weighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles, samples_weights)
         unweighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles)
         model_array_linear = self.get_model_linear(constant_term, mean_vector, ref_params, model_terms)
-        model_array_nonlinear = self.get_model_nonlinear(mean_vector, analysis_times, Mf, chif)
+        model_array_nonlinear = self.get_model_nonlinear(mean_vector, analysis_times, Mf_ref, chif_ref)
 
         fit = {
             "ls_amplitudes": ls_amplitudes,
+            "chif_ref": chif_ref,
+            "Mf_ref": Mf_ref,
+            "frequencies": frequencies,
+            "frequency_derivatives": frequency_derivatives,
+            "mixing_coefficients": mixing_coefficients,
+            "mixing_derivatives": mixing_derivatives,
             "inv_noise_covariance": inverse_noise_covariance_matrix,
             "fisher_matrix": fisher_matrix,
             "covariance": covariance_matrix,
@@ -232,8 +263,9 @@ class BGP_fit(Base_BGP_fit):
             "sample_amplitudes": sample_amplitudes,
             "sample_phases": sample_phases,
             "samples_weights": samples_weights,
+            "N_effective_samples": neff,
             "unweighted_quantiles": unweighted_quantiles_dict,
-            "weighted_quantiles": weighted_quantiles_dict,
+            #"weighted_quantiles": weighted_quantiles_dict,
             "model_array_linear": model_array_linear,
             "model_array_nonlinear": model_array_nonlinear,
             "analysis_times": analysis_times,

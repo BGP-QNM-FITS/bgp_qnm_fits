@@ -1,4 +1,6 @@
 import qnmfits
+import os 
+os.environ['JAX_PLATFORMS'] = 'cpu'
 import jax
 import jax.numpy as jnp
 from scipy.optimize import minimize
@@ -67,14 +69,14 @@ class Base_BGP_fit:
         self.spherical_modes_length = len(self.spherical_modes)
         self.data_array = jnp.array([data_dict[mode] for mode in self.spherical_modes])
 
-        # Note that the default is to set the ABD mass and spin as attributes; this is overridden in
-        # the subclass if the user wants to use the nonlinear mass and spin.
+        # By default, the base class sets the ABD mass and spin (NR values) as attributes; subclasses may override 
+        # this behavior to implement nonlinear mass and spin from least-squares minimization.
 
-        self.Mf_abd = Mf
-        self.chif_abd = chif
+        self.Mf_ref = Mf
+        self.chif_ref = chif
 
         self.frequencies, self.frequency_derivatives, self.mixing_coefficients, self.mixing_derivatives = (
-            self._get_mixing_frequency_terms(self.chif_abd, self.Mf_abd)
+            self._get_mixing_frequency_terms(self.chif_ref, self.Mf_ref)
         )
 
         # Check if the kernel is diagonal
@@ -262,13 +264,13 @@ class Base_BGP_fit:
         """Compute the exponential terms for the QNM fitting."""
         return jnp.array([jnp.exp(-1j * frequencies[i] * analysis_times) for i in range(self.modes_length)])
 
-    def _get_domega_dchif(self, mode, chif, Mf, delta=1.0e-3):
+    def _get_domega_dchif(self, mode, chif, Mf, delta=1.0e-6):
         """Compute domega/dchif for a given QNM."""
         omega_plus = self._get_frequency(mode, chif + delta, Mf)
         omega_minus = self._get_frequency(mode, chif - delta, Mf)
         return (omega_plus - omega_minus) / (2 * delta)
 
-    def _get_dmu_dchif(self, mode, sph_mode, chif, delta=0.01):
+    def _get_dmu_dchif(self, mode, sph_mode, chif, delta=1.0e-6):
         """Compute dmu/dchif for a given QNM."""
         mu_plus = self._get_mixing(mode, sph_mode, chif=chif + delta)
         mu_minus = self._get_mixing(mode, sph_mode, chif=chif - delta)
