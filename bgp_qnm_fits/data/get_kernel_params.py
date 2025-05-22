@@ -116,23 +116,23 @@ BOUNDS_GPC = [
 # INITIAL_PARAMS_GP = [1.0, 0.0, 1.0, 1.0]
 # INITIAL_PARAMS_GPC = [0.5715534011443748, 0.0032311845355438894, SMOOTHNESS, 1.7176362780942858, 0.31558556618927797, 1.7176362780942858, 0.31558556618927797, 0.5]
 
-INITIAL_PARAMS_WN = [0.2427084073890334]
+INITIAL_PARAMS_WN = [0.29127733345656215]
 INITIAL_PARAMS_GP = [
-    0.3980389941570934,
-    8.809357469573628,
-    0.9402560980229044,
-    0.2534488252986766,
+    0.2283378440307793,
+    18.37394010821784,
+    0.8610899535603144,
+    0.2605530172829033,
 ]
 # INITIAL_PARAMS_GPC = [0.5678699426741673, 3.3680141572797027, 7.841502124072786, 1.241209026430354, 0.9894982312667636, 0.1064862157208278, 0.139811581920352, 0.5917377132835934]
 INITIAL_PARAMS_GPC = [
-    0.56698331,
-    3.07506273,
-    10.05455381,
-    1.26665191,
-    0.88166884,
-    0.1212859,
-    1.13996704,
-    0.47001289,
+    0.29443340366568055,
+    17.00880319694479,
+    8.52342433839235,
+    0.992215662729599,
+    0.29792754163345136,
+    1.4599452640915012,
+    3.702622948813973,
+    0.8844594560538273,
 ]
 
 # Define rules for updating params
@@ -248,18 +248,18 @@ def get_hyperparams_GPC(R_dict, param_dict):
 
 
 if __name__ == "__main__":
-    R_dict, param_dict = get_parameters()
-    print("Getting hyperparameters...")
-    #with open("param_dict.pkl", "rb") as f:
-    #    param_dict = pickle.load(f)
-    #with open("R_dict.pkl", "rb") as f:
-    #    R_dict = pickle.load(f)
-    # hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
-    # print("Hyperparameters for WN:", hyperparam_list_WN)
-    # hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict, param_dict)
-    # print("Hyperparameters for GP:", hyperparam_list_GP)
-    #hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict, param_dict)
-    #print("Hyperparameters for GPC:", hyperparam_list_GPC)
+    #R_dict, param_dict = get_parameters()
+    #print("Getting hyperparameters...")
+    with open("param_dict.pkl", "rb") as f:
+        param_dict = pickle.load(f)
+    with open("R_dict.pkl", "rb") as f:
+        R_dict = pickle.load(f)
+    #hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
+    #print("Hyperparameters for WN:", hyperparam_list_WN)
+    hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict, param_dict)
+    print("Hyperparameters for GP:", hyperparam_list_GP)
+    hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict, param_dict)
+    print("Hyperparameters for GPC:", hyperparam_list_GPC)
 
     # with open("tuned_params_WN.pkl", "wb") as f:
     #    pickle.dump(tuned_params_WN, f)

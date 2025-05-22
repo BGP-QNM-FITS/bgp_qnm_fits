@@ -16,27 +16,24 @@ def logoneplusexp(t):
     return jnp.log(1 + jnp.exp(-jnp.abs(t))) + jnp.maximum(t, 0)
 
 
-def smoothclip(t, sigma_min, sigma_max, sharpness):
+def smoothclip(t, sigma_max, sharpness):
     return (
-        t
-        - (1.0 / sharpness) * logoneplusexp(sharpness * (t - sigma_max))
-        + (1.0 / sharpness) * logoneplusexp(-sharpness * (t - sigma_min))
+        t - (1.0 / sharpness) * logoneplusexp(sharpness * (t - sigma_max))
     )
 
 
-def softclip(t, sigma_min, sigma_max, sharpness):
-    return jnp.exp(smoothclip(jnp.log(t), jnp.log(sigma_min), jnp.log(sigma_max), sharpness))
+def softclip(t, sigma_max, sharpness):
+    return jnp.exp(smoothclip(jnp.log(t), jnp.log(sigma_max), sharpness))
 
 
 def exponential_func(t, length_scale, t_s, sigma_max):
     return sigma_max * jnp.exp(-(t - t_s) / length_scale)
 
 
-def new_func(t, length_scale, t_s, sigma_min, sigma_max, sharpness):
+def new_func(t, length_scale, t_s, sigma_max, sharpness):
     t = jnp.asarray(t)
     return softclip(
         exponential_func(t, length_scale, t_s, sigma_max),
-        sigma_min,
         sigma_max,
         sharpness,
     )
@@ -60,7 +57,6 @@ def kernel_main(analysis_times, **kwargs):
             t1,
             kwargs["length_scale"],
             kwargs["t_s"],
-            kwargs["sigma_min"],
             kwargs["sigma_max"],
             kwargs["sharpness"],
         )[:, None]
@@ -68,7 +64,6 @@ def kernel_main(analysis_times, **kwargs):
             t2,
             kwargs["length_scale"],
             kwargs["t_s"],
-            kwargs["sigma_min"],
             kwargs["sigma_max"],
             kwargs["sharpness"],
         )[None, :]
@@ -87,7 +82,6 @@ def kernel_c(analysis_times, **kwargs):
             t1,
             kwargs["length_scale"],
             kwargs["t_s"],
-            kwargs["sigma_min"],
             kwargs["sigma_max"],
             kwargs["sharpness"],
         )[:, None]
@@ -95,15 +89,14 @@ def kernel_c(analysis_times, **kwargs):
             t2,
             kwargs["length_scale"],
             kwargs["t_s"],
-            kwargs["sigma_min"],
             kwargs["sigma_max"],
             kwargs["sharpness"],
         )[None, :]
     )
 
 
-def compute_kernel_matrix(analysis_times, hyperparams, kernel):
-    return kernel(jnp.asarray(analysis_times), **hyperparams) + jnp.eye(len(analysis_times)) * 1e-10 # TODO jitter affects late time noise estimation > 0.1sigma_max**2
+def compute_kernel_matrix(analysis_times, hyperparams, kernel, epsilon=1e-4):
+    return kernel(jnp.asarray(analysis_times), **hyperparams) + jnp.eye(len(analysis_times)) * hyperparams["sigma_max"] ** 2 * epsilon
 
 
 def get_inv_GP_covariance_matrix(analysis_times, kernel, tuned_param_dict, spherical_modes=None):

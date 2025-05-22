@@ -79,7 +79,7 @@ TIME_STEP = 1
 
 # Define training bounds
 
-SIGMA_MAX_LOWER, SIGMA_MAX_UPPER = 0.1, 5
+SIGMA_MAX_LOWER, SIGMA_MAX_UPPER = 0.01, 5
 T_S_LOWER, T_S_UPPER = -20, 30
 LENGTH_SCALE_LOWER, LENGTH_SCALE_UPPER = 0.1, 5
 PERIOD_LOWER, PERIOD_UPPER = 0.1, 5
@@ -87,7 +87,7 @@ PERIOD_LOWER, PERIOD_UPPER = 0.1, 5
 SMOOTHNESS_LOWER, SMOOTHNESS_UPPER = 0, 30
 LENGTH_SCALE_2_LOWER, LENGTH_SCALE_2_UPPER = 0.1, 5
 PERIOD_2_LOWER, PERIOD_2_UPPER = 0.1, 5
-A_LOWER, A_UPPER = 0, 0.9
+A_LOWER, A_UPPER = 0.1, 0.9
 
 BOUNDS_WN = [
     (SIGMA_MAX_LOWER, SIGMA_MAX_UPPER),
@@ -121,14 +121,14 @@ INITIAL_PARAMS_GP = [
     0.2534488252986766,
 ]
 INITIAL_PARAMS_GPC = [
-    0.5678699426741673,
-    3.3680141572797027,
-    7.841502124072786,
-    1.241209026430354,
-    0.9894982312667636,
-    0.1064862157208278,
-    0.139811581920352,
-    0.5917377132835934,
+    0.29550949406755234,
+    17.09409305585579,
+    5.4134502658871195,
+    0.986751818899561,
+    0.2375190890754558,
+    2.3582992560167635,
+    4.033119182970202,
+    0.5608517921085092,
 ]
 
 # Define rules for updating params
@@ -352,7 +352,7 @@ def get_hyperparams_GPC_global(R_dict, param_dict):
 
 
 if __name__ == "__main__":
-    # R_dict, param_dict = get_parameters()
+    #R_dict, param_dict = get_parameters()
 
     # with open("R_dict_mini.pkl", "wb") as f:
     #    pickle.dump(R_dict, f)
@@ -369,29 +369,29 @@ if __name__ == "__main__":
     log_evidence_list = []
     hyperparams_list = []
 
-    # hyperparams_list_WN_global, le_WN_global = get_hyperparams_WN_global(R_dict, param_dict)
-    # hyperparams_list_GP_global, le_GP_global = get_hyperparams_GP_global(R_dict, param_dict)
-    # hyperparam_list_GPC_global, le_GPC_global = get_hyperparams_GPC_global(R_dict, param_dict)
+    #hyperparams_list_WN_global, le_WN_global = get_hyperparams_WN_global(R_dict, param_dict)
+    hyperparams_list_GP_global, le_GP_global = get_hyperparams_GP_global(R_dict, param_dict)
+    #hyperparam_list_GPC_global, le_GPC_global = get_hyperparams_GPC_global(R_dict, param_dict)
 
-    hyperparams_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
+    #hyperparams_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
     hyperparams_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict, param_dict)
-    hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict, param_dict)
+    #hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict, param_dict)
 
-    print("############ Global hyperparameters ############")
-    print("Hyperparameters for WN:", hyperparams_list_WN)
-    print("Log evidence for WN:", le_WN)
-    print("Hyperparameters for GP:", hyperparams_list_GP)
-    print("Log evidence for GP:", le_GP)
-    print("Hyperparameters for GPC:", hyperparam_list_GPC)
-    print("Log evidence for GPC:", le_GPC)
+    #print("############ Global hyperparameters ############")
+    #print("Hyperparameters for WN:", hyperparams_list_WN)
+    #print("Log evidence for WN:", le_WN)
+    #print("Hyperparameters for GP:", hyperparams_list_GP)
+    #print("Log evidence for GP:", le_GP)
+    #print("Hyperparameters for GPC:", hyperparam_list_GPC)
+    #print("Log evidence for GPC:", le_GPC)
 
-    print("############ Scipy minimize hyperparameters ############")
-    print("Hyperparameters for WN:", hyperparams_list_WN_global)
-    print("Log evidence for WN:", le_WN_global)
-    print("Hyperparameters for GP:", hyperparams_list_GP_global)
-    print("Log evidence for GP:", le_GP_global)
-    print("Hyperparameters for GPC:", hyperparam_list_GPC_global)
-    print("Log evidence for GPC:", le_GPC_global)
+    #print("############ Scipy minimize hyperparameters ############")
+    #print("Hyperparameters for WN:", hyperparams_list_WN_global)
+    #print("Log evidence for WN:", le_WN_global)
+    #print("Hyperparameters for GP:", hyperparams_list_GP_global)
+    #print("Log evidence for GP:", le_GP_global)
+    #print("Hyperparameters for GPC:", hyperparam_list_GPC_global)
+    #print("Log evidence for GPC:", le_GPC_global)
 
     # for i, initial_params in enumerate(initial_params_list):
     #    print("Initial params:", initial_params)

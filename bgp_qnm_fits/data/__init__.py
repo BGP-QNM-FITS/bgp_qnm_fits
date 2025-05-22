@@ -8,6 +8,7 @@ GP_PARAMS_PATH = os.path.join(DATA_DIR, "tuned_params_GP.pkl")
 GPc_PARAMS_PATH = os.path.join(DATA_DIR, "tuned_params_GPC.pkl")
 
 RESIDUAL_PATH = os.path.join(DATA_DIR, "R_dict.pkl")
+PARAM_DICT_PATH = os.path.join(DATA_DIR, "param_dict.pkl")
 
 # Load the data files
 def get_param_data(kernel_type):
@@ -26,6 +27,10 @@ def get_param_data(kernel_type):
 
 def get_residual_data():
     with open(RESIDUAL_PATH, "rb") as f:
+        return pickle.load(f)
+    
+def get_param_dict():
+    with open(PARAM_DICT_PATH, "rb") as f:
         return pickle.load(f)
 
 
