@@ -131,7 +131,7 @@ def train_hyper_params(
 
 def log_evidence(K, f):
     _, logdet = np.linalg.slogdet(K)
-    return -0.5 * (np.dot(f, scipy.linalg.solve(K, f, assume_a="pos")) + logdet + len(f) * np.log(2 * np.pi))
+    return -0.5 * (np.dot(f, scipy.linalg.solve(K, f, assume_a="pos")) + logdet + len(f) * np.log(2 * np.pi)) 
 
 
 def get_new_params(param_dict, hyperparam_list, rule_dict):
@@ -144,7 +144,7 @@ def get_new_params(param_dict, hyperparam_list, rule_dict):
         elif rule == "replace":
             new_params[param] = hyperparam_list[i]
 
-    new_params["sigma_min"] = param_dict["sigma_min"] * hyperparam_list[list(rule_dict.keys()).index("sigma_max")]
+    #new_params["sigma_min"] = param_dict["sigma_min"] * hyperparam_list[list(rule_dict.keys()).index("sigma_max")]
     new_params.update({param: param_dict[param] for param in param_dict if param not in new_params})
 
     return new_params
@@ -159,6 +159,8 @@ def get_total_log_evidence(
     kernel,
     spherical_modes,
     mode_rules,
+    alpha=2,
+    beta=2
 ):
 
     mode_filters = {
@@ -184,6 +186,11 @@ def get_total_log_evidence(
             total_log_evidence += log_evidence_real + log_evidence_imag
             if mode_rule in {"P", "PE"}:
                 total_log_evidence += log_evidence_real + log_evidence_imag
+
+    if "a" in rule_dict.keys():
+        a_hyperparam_index = list(rule_dict.keys()).index("a")
+        current_a_value = hyperparam_list[a_hyperparam_index]
+        total_log_evidence += (alpha - 1) * np.log(current_a_value) + (beta - 1) * np.log(1 - current_a_value) 
 
     return -total_log_evidence
 
