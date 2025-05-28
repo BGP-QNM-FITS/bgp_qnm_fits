@@ -1,7 +1,6 @@
 import numpy as np
 import qnmfits
-import os 
-os.environ['JAX_PLATFORMS'] = 'cpu'
+import os
 import jax
 import jax.numpy as jnp
 import time
@@ -9,20 +8,41 @@ import time
 from bgp_qnm_fits.base_fit import Base_BGP_fit
 from tqdm import tqdm
 
+os.environ["JAX_PLATFORMS"] = "cpu"
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 
+
 class BGP_fit(Base_BGP_fit):
+    """
+    A class for fitting QNM parameters to data using Bayesian inference.
+    This class extends the Base_BGP_fit class and provides methods for fitting QNM parameters
+    at a specific time or list of times.
+    """
+
     def __init__(
         self,
         *args,
         t0,
         use_nonlinear_params=False,
-        decay_corrected=False, 
+        decay_corrected=False,
         num_samples=10000,
         quantiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99],
         **kwargs,
     ):
+        """
+        Initializes the BGP_fit class.
+        Args:
+            *args: Positional arguments for the Base_BGP_fit class.
+            t0 (float, int, list, or tuple): The time at which to fit the QNM parameters.
+            use_nonlinear_params (bool): Whether to use nonlinear parameters in the fit
+            (note this is slower and provides only a small improvement on the linearised approximation).
+            decay_corrected (bool): Whether to apply decay correction to the amplitudes
+            (note this takes a long time as it is computed for each sample).
+            num_samples (int): Number of samples to draw from the posterior distribution.
+            quantiles (list): List of quantiles to compute from the amplitude distribution.
+            **kwargs: Keyword arguments for the Base_BGP_fit class.
+        """
 
         super().__init__(*args, **kwargs)
 
@@ -32,6 +52,8 @@ class BGP_fit(Base_BGP_fit):
         self.use_nonlinear_params = use_nonlinear_params
         self.decay_corrected = decay_corrected
 
+        # Decide whether to perform the fit once or loop over multiple t0 values.
+        # In the latter case, the fits will be stored in a list.
         if isinstance(t0, (float, int)):
             self.fit = self.get_fit_at_t0(t0)
         elif isinstance(t0, (list, tuple, np.ndarray)):
@@ -43,10 +65,13 @@ class BGP_fit(Base_BGP_fit):
 
     def _get_samples(self, mean_vector, covariance_matrix):
         """
-        Generate samples from the posterior distribution of the parameters.
-
+        Draw samples from a multivariate normal distribution with the given mean vector and covariance matrix.
+        Args:
+            mean_vector (array): The mean vector of the multivariate normal distribution.
+            covariance_matrix (array): The covariance matrix of the multivariate normal distribution.
         Returns:
-            jnp.ndarray: A 2D array of samples from the posterior distribution.
+            samples (array): Samples drawn from the multivariate normal distribution.
+            key (jax.random.PRNGKey): The updated random key after sampling.
         """
         key, subkey = jax.random.split(self.key)
         samples = jax.random.multivariate_normal(
@@ -59,7 +84,18 @@ class BGP_fit(Base_BGP_fit):
 
     def get_amplitude_phase(self, mean, samples, t0):
         """
-        Compute the amplitude and phase from the samples.
+        Compute the amplitude and phase of the QNM parameters from the mean and samples.
+        Args:
+            mean (array): The mean vector of the parameters.
+            samples (array): Samples drawn from the posterior distribution.
+            t0 (float): The time at which the fit is performed.
+        Returns:
+            mean_amplitude (array): The mean amplitude of the QNM parameters.
+            mean_phase (array): The mean phase of the QNM parameters.
+            sample_amplitudes (array): The amplitudes of the samples.
+            sample_phases (array): The phases of the samples.
+            samples_weights (array): Weights for the samples for using `Prior 2'
+            neff (float): Effective number of samples after reweighting.
         """
 
         num_amplitude_params = self.modes_length * 2
@@ -76,38 +112,43 @@ class BGP_fit(Base_BGP_fit):
         sample_amplitudes = jnp.sqrt(samples_re**2 + samples_im**2)
         sample_phases = jnp.arctan2(samples_im, samples_re)
 
-        if self.decay_corrected: 
+        if self.decay_corrected:
             decay_corrected_sample_amplitudes = jnp.zeros_like(sample_amplitudes)
 
-            chif_samples = samples[:, -2] 
-            Mf_samples = samples[:, -1]   
+            chif_samples = samples[:, -2]
+            Mf_samples = samples[:, -1]
 
             for i, mode in enumerate(self.modes):
-                decay_times = np.array([qnmfits.qnm.omega_list([mode], chif, Mf)[0].imag 
-                        for chif, Mf in zip(chif_samples, Mf_samples)])
+                decay_times = np.array(
+                    [qnmfits.qnm.omega_list([mode], chif, Mf)[0].imag for chif, Mf in zip(chif_samples, Mf_samples)]
+                )
                 correction_factors = jnp.exp(-decay_times * t0)
                 decay_corrected_sample_amplitudes = decay_corrected_sample_amplitudes.at[:, i].set(
-                sample_amplitudes[:, i] * correction_factors
+                    sample_amplitudes[:, i] * correction_factors
                 )
             sample_amplitudes = decay_corrected_sample_amplitudes
 
         log_samples = jnp.log(sample_amplitudes)
         samples_weights = jnp.exp(-jnp.sum(log_samples, axis=1))
 
-        neff = jnp.sum(samples_weights)**2 / jnp.sum(samples_weights**2)
+        neff = jnp.sum(samples_weights) ** 2 / jnp.sum(samples_weights**2)
 
-        #print(self.num_samples)
+        # print(self.num_samples)
 
-        return (
-            mean_amplitude,
-            mean_phase,
-            sample_amplitudes,
-            sample_phases,
-            samples_weights,
-            neff
-        )
+        return (mean_amplitude, mean_phase, sample_amplitudes, sample_phases, samples_weights, neff)
 
     def weighted_quantile(self, values, quantiles, weights=None):
+        """
+        Compute the weighted quantiles of a set of values.
+        Args:
+            values (array): The values for which to compute the quantiles.
+            quantiles (array): The quantiles to compute.
+            weights (array, optional): Weights for the values. If None, equal weights are assumed and
+            this function just reverts to a classic quantile caculator.
+        Returns:
+            quantile_values (array): The computed quantiles for each value.
+        """
+
         values = np.array(values)
         quantiles = np.array(quantiles)
         if weights is None:
@@ -132,7 +173,14 @@ class BGP_fit(Base_BGP_fit):
 
     def get_amplitude_quantiles(self, sample_amplitudes, quantiles, samples_weights=None):
         """
-        Compute the quantiles of the amplitude distribution.
+        Compute the quantiles of the absolute amplitudes of the samples.
+        Args:
+            sample_amplitudes (array): The amplitudes of the samples.
+            quantiles (list): The quantiles to compute.
+            samples_weights (array, optional): Weights for the samples. If None, equal weights are assumed.
+        Returns:
+            weighted_abs_amplitude_quantiles_dict (dict): A dictionary where keys are quantiles and values are the
+            corresponding quantile values for the absolute amplitudes.
         """
         weighted_abs_amplitude_quantiles = self.weighted_quantile(sample_amplitudes, quantiles, weights=samples_weights)
         weighted_abs_amplitude_quantiles_dict = {
@@ -141,6 +189,17 @@ class BGP_fit(Base_BGP_fit):
         return weighted_abs_amplitude_quantiles_dict
 
     def get_model_nonlinear(self, mean_vector, analysis_times, Mf_val, chif_val):
+        """
+        Compute the nonlinear model array based on the mean vector and analysis times.
+        Args:
+            mean_vector (array): The mean vector of the parameters.
+            analysis_times (array): The times at which the model is evaluated.
+            Mf_val (float): The mass parameter for the model.
+            chif_val (float): The dimensionless spin parameter for the model.
+        Returns:
+            model_array (array): The model array.
+        """
+
         if self.include_chif and self.include_Mf:
             chif = mean_vector[-2]
             Mf = mean_vector[-1]
@@ -180,9 +239,26 @@ class BGP_fit(Base_BGP_fit):
         return model_array
 
     def get_model_linear(self, constant_term, mean_vector, ref_params, model_terms):
+        """
+        Compute the linear model array based on the mean vector and model terms.
+        Args:
+            constant_term (float): The constant term in the model.
+            mean_vector (array): The mean vector of the parameters.
+            ref_params (array): Reference parameters for the model.
+            model_terms (array): The model terms.
+        Returns:
+            model_array (array): The linear model array.
+        """
         return constant_term + jnp.einsum("p,pst->st", mean_vector - ref_params, model_terms)
 
     def get_fit_at_t0(self, t0):
+        """
+        Perform the fit at a specific time t0.
+        Args:
+            t0 (float): The time at which to perform the fit.
+        Returns:
+            fit (dict): A dictionary containing relevant results of the fit.
+        """
 
         analysis_times, masked_data_array = self._mask_data(t0)
         model_times = analysis_times - t0
@@ -203,7 +279,9 @@ class BGP_fit(Base_BGP_fit):
             )
 
         exponential_terms = self._get_exponential_terms(model_times, frequencies)
-        ls_amplitudes, ref_params = self._get_ls_amplitudes(t0, Mf_ref, chif_ref) # TODO: Check if to get the LS amplitudes, we should always use refernce Mf, Chif. 
+        ls_amplitudes, ref_params = self._get_ls_amplitudes(
+            t0, Mf_ref, chif_ref
+        )  # TODO: Check if to get the LS amplitudes, we should always use refernce Mf, Chif.
         model_terms = self.get_model_terms(
             model_times,
             ls_amplitudes,
@@ -239,7 +317,7 @@ class BGP_fit(Base_BGP_fit):
             neff,
         ) = self.get_amplitude_phase(mean_vector, samples, t0)
 
-        #weighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles, samples_weights)
+        # weighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles, samples_weights)
         unweighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles)
         model_array_linear = self.get_model_linear(constant_term, mean_vector, ref_params, model_terms)
         model_array_nonlinear = self.get_model_nonlinear(mean_vector, analysis_times, Mf_ref, chif_ref)
@@ -265,7 +343,7 @@ class BGP_fit(Base_BGP_fit):
             "samples_weights": samples_weights,
             "N_effective_samples": neff,
             "unweighted_quantiles": unweighted_quantiles_dict,
-            #"weighted_quantiles": weighted_quantiles_dict,
+            # "weighted_quantiles": weighted_quantiles_dict,
             "model_array_linear": model_array_linear,
             "model_array_nonlinear": model_array_nonlinear,
             "analysis_times": analysis_times,

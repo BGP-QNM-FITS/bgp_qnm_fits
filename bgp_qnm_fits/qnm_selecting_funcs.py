@@ -23,7 +23,7 @@ def marginalise(parameter_choice, parameters, mean_vector, fisher_matrix):
         The Fisher matrix of the marginalised parameters.
     """
 
-    keep_indices = np.array([i for i, p in enumerate(parameters) if p in parameter_choice]) 
+    keep_indices = np.array([i for i, p in enumerate(parameters) if p in parameter_choice])
     marginalize_indices = [i for i in range(len(parameters)) if i not in keep_indices]
     marginal_mean = mean_vector[keep_indices]
     Q_11 = fisher_matrix[np.ix_(keep_indices, keep_indices)]

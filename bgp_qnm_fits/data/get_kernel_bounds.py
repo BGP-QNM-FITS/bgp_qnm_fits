@@ -1,13 +1,22 @@
 import numpy as np
 import pickle
 import sys
+import CCE
+
 from scipy.optimize import differential_evolution
 from pathlib import Path
+from bgp_qnm_fits import (
+    get_residuals,
+    get_params,
+    train_hyper_params,
+    get_total_log_likelihood,
+    kernel_s,
+    kernel_main,
+    kernel_c,
+)
 
 notebook_dir = Path().resolve()
 sys.path.append(str(notebook_dir.parent))
-
-from bgp_qnm_fits import *
 
 SIMNUMS = [
     "0001",
@@ -180,12 +189,6 @@ def get_parameters():
         R_dict[sim_id] = R_lm
         param_dict[sim_id] = params_lm
 
-    with open("R_dict.pkl", "wb") as f:
-        pickle.dump(R_dict, f)
-
-    with open("param_dict.pkl", "wb") as f:
-        pickle.dump(param_dict, f)
-
     return R_dict, param_dict
 
 
@@ -261,7 +264,7 @@ def get_hyperparams_WN_global(R_dict, param_dict):
     )
 
     result = differential_evolution(
-        get_total_log_evidence,
+        get_total_log_likelihood,
         BOUNDS_WN,
         args,
     )
@@ -297,7 +300,7 @@ def get_hyperparams_GP_global(R_dict, param_dict):
     )
 
     result = differential_evolution(
-        get_total_log_evidence,
+        get_total_log_likelihood,
         BOUNDS_GP,
         args,
     )
@@ -333,7 +336,7 @@ def get_hyperparams_GPC_global(R_dict, param_dict):
     )
 
     result = differential_evolution(
-        get_total_log_evidence,
+        get_total_log_likelihood,
         BOUNDS_GPC,
         args,
     )
@@ -352,46 +355,46 @@ def get_hyperparams_GPC_global(R_dict, param_dict):
 
 
 if __name__ == "__main__":
-    #R_dict, param_dict = get_parameters()
+    R_dict, param_dict = get_parameters()
 
-    # with open("R_dict_mini.pkl", "wb") as f:
-    #    pickle.dump(R_dict, f)
+    with open("R_dict_mini.pkl", "wb") as f:
+        pickle.dump(R_dict, f)
 
-    # with open("param_dict_mini.pkl", "wb") as f:
-    #    pickle.dump(param_dict, f)
+    with open("param_dict_mini.pkl", "wb") as f:
+        pickle.dump(param_dict, f)
 
-    with open("param_dict_mini.pkl", "rb") as f:
-        param_dict = pickle.load(f)
-    with open("R_dict_mini.pkl", "rb") as f:
-        R_dict = pickle.load(f)
+    # with open("param_dict_mini.pkl", "rb") as f:
+    #    param_dict = pickle.load(f)
+    # with open("R_dict_mini.pkl", "rb") as f:
+    #    R_dict = pickle.load(f)
 
     intital_params_list = []
-    log_evidence_list = []
+    log_likelihood_list = []
     hyperparams_list = []
 
-    #hyperparams_list_WN_global, le_WN_global = get_hyperparams_WN_global(R_dict, param_dict)
+    hyperparams_list_WN_global, le_WN_global = get_hyperparams_WN_global(R_dict, param_dict)
     hyperparams_list_GP_global, le_GP_global = get_hyperparams_GP_global(R_dict, param_dict)
-    #hyperparam_list_GPC_global, le_GPC_global = get_hyperparams_GPC_global(R_dict, param_dict)
+    hyperparam_list_GPC_global, le_GPC_global = get_hyperparams_GPC_global(R_dict, param_dict)
 
-    #hyperparams_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
+    hyperparams_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
     hyperparams_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict, param_dict)
-    #hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict, param_dict)
+    hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict, param_dict)
 
-    #print("############ Global hyperparameters ############")
-    #print("Hyperparameters for WN:", hyperparams_list_WN)
-    #print("Log evidence for WN:", le_WN)
-    #print("Hyperparameters for GP:", hyperparams_list_GP)
-    #print("Log evidence for GP:", le_GP)
-    #print("Hyperparameters for GPC:", hyperparam_list_GPC)
-    #print("Log evidence for GPC:", le_GPC)
+    # print("############ Global hyperparameters ############")
+    # print("Hyperparameters for WN:", hyperparams_list_WN)
+    # print("Log evidence for WN:", le_WN)
+    # print("Hyperparameters for GP:", hyperparams_list_GP)
+    # print("Log evidence for GP:", le_GP)
+    # print("Hyperparameters for GPC:", hyperparam_list_GPC)
+    # print("Log evidence for GPC:", le_GPC)
 
-    #print("############ Scipy minimize hyperparameters ############")
-    #print("Hyperparameters for WN:", hyperparams_list_WN_global)
-    #print("Log evidence for WN:", le_WN_global)
-    #print("Hyperparameters for GP:", hyperparams_list_GP_global)
-    #print("Log evidence for GP:", le_GP_global)
-    #print("Hyperparameters for GPC:", hyperparam_list_GPC_global)
-    #print("Log evidence for GPC:", le_GPC_global)
+    # print("############ Scipy minimize hyperparameters ############")
+    # print("Hyperparameters for WN:", hyperparams_list_WN_global)
+    # print("Log evidence for WN:", le_WN_global)
+    # print("Hyperparameters for GP:", hyperparams_list_GP_global)
+    # print("Log evidence for GP:", le_GP_global)
+    # print("Hyperparameters for GPC:", hyperparam_list_GPC_global)
+    # print("Log evidence for GPC:", le_GPC_global)
 
     # for i, initial_params in enumerate(initial_params_list):
     #    print("Initial params:", initial_params)
@@ -399,5 +402,5 @@ if __name__ == "__main__":
     #    print("Hyperparams GPC:", hyperparam_list_GPC)
     #    print("Log evidence GPC:", le_GPC)
     #    intital_params_list.append(initial_params)
-    #    log_evidence_list.append(le_GPC)
+    #    log_likelihood_list.append(le_GPC)
     #    hyperparams_list.append(hyperparam_list_GPC)

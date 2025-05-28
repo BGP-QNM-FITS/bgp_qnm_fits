@@ -9,7 +9,13 @@ from .GP_funcs import (
 )
 from .qnm_selecting_funcs import get_significance, get_significance_list
 
-from .kernel_param_funcs import get_residuals, train_hyper_params, get_params, get_total_log_evidence, get_tuned_params
+from .kernel_param_funcs import (
+    get_residuals,
+    train_hyper_params,
+    get_params,
+    get_total_log_likelihood,
+    get_tuned_params,
+)
 
 from .utils import (
     sim_interpolator,
@@ -19,7 +25,7 @@ from .utils import (
     mismatch,
     log_likelihood,
 )
-from .data import get_param_data, get_residual_data, get_param_dict
+from .data import get_param_data, get_residual_data, get_param_dict, SXS_CCE
 
 __all__ = [
     "BGP_fit",
@@ -32,9 +38,9 @@ __all__ = [
     "get_significance",
     "get_significance_list",
     "get_residuals",
-    "train_hyper_params", 
-    "get_params", 
-    "get_total_log_evidence",
+    "train_hyper_params",
+    "get_params",
+    "get_total_log_likelihood",
     "get_tuned_params",
     "sim_interpolator",
     "sim_interpolator_data",
@@ -45,6 +51,7 @@ __all__ = [
     "get_param_data",
     "get_residual_data",
     "get_param_dict",
+    "SXS_CCE",
 ]
 
 __version__ = "0.1.0"

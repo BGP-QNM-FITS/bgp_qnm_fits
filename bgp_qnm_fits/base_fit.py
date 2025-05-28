@@ -1,11 +1,13 @@
 import qnmfits
-import os 
-os.environ['JAX_PLATFORMS'] = 'cpu'
+import os
 import jax
 import jax.numpy as jnp
+
+from bgp_qnm_fits.GP_funcs import compute_kernel_matrix
 from scipy.optimize import minimize
 from functools import partial
 
+os.environ["JAX_PLATFORMS"] = "cpu"
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 
@@ -36,19 +38,22 @@ class Base_BGP_fit:
         include_Mf=False,
     ):
         """
-        Initialize the BGP_fit object with the required parameters.
+        Initialize the Base_BGP_fit class.
+        This method sets up the initial attributes and computes the necessary parameters for the fitting process.
 
         Args:
-            times (array): The full simulation time array.
-            data_dict (dict): The full dictionary of data for spherical modes directly from the sim object.
-            modes (list): List of QNMs.
-            Mf (float): Remnant mass (from metadata).
-            chif (float): Remnant spin (from metadata).
-            t0 (float or list): Start time(s).
-            kernel_param_dict (dict): Kernel parameters for GP.
-            kernel (callable): Kernel function for GP.
-            T (float): Duration of the analysis window (i.e. anlysis runs to T + t0).
-            spherical_modes (list): List of spherical modes.
+            times (array): List of time values corresponding to the data_dict.
+            data_dict (dict): Dictionary containing the data for each spherical mode.
+            modes (list): List of QNM modes to fit.
+            Mf (float): Reference remnant mass.
+            chif (float): Reference remnant dimensionless spin.
+            kernel_param_dict (dict): Dictionary containing the hyperparameters for the kernel.
+            kernel (callable): Kernel function to be used in the GP fitting.
+            t0_method (str): Method for determining the start time of the fitting ("geq" or "closest").
+            T (float): Duration of the fitting window.
+            spherical_modes (list, optional): List of spherical modes to consider. If None, defaults to keys of data_dict.
+            include_chif (bool): Whether to include the remnant spin as a parameter in the fitting.
+            include_Mf (bool): Whether to include the remnant mass as a parameter in the fitting.
         """
 
         # Get initial attributes
@@ -69,7 +74,7 @@ class Base_BGP_fit:
         self.spherical_modes_length = len(self.spherical_modes)
         self.data_array = jnp.array([data_dict[mode] for mode in self.spherical_modes])
 
-        # By default, the base class sets the ABD mass and spin (NR values) as attributes; subclasses may override 
+        # By default, the base class sets the ABD mass and spin (NR values) as attributes; subclasses may override
         # this behavior to implement nonlinear mass and spin from least-squares minimization.
 
         self.Mf_ref = Mf
@@ -96,10 +101,10 @@ class Base_BGP_fit:
         Mask the data based on the specified t0_method.
 
         Args:
-            t0_method (str): Method for masking data ("geq" or "closest").
+            t0 (float): The start time for the fitting.
 
         Returns:
-            tuple: Masked times and data dictionary.
+            tuple: A tuple containing the masked times and the corresponding data array.
         """
         # T = self.T - t0 # TODO: REMEMBER THIS IS THE CURRENT CONVENTION!!
         start_index = jnp.argmin((self.times - t0) ** 2)
@@ -110,10 +115,10 @@ class Base_BGP_fit:
 
     def _get_params(self):
         """
-        Get the parameters for the QNM fitting.
+        Get the parameter names for the QNM fitting.
 
         Returns:
-            jnp.ndarray: JAX array of parameters for the QNM fitting.
+            list: A list of parameter names for the fitting.
         """
         params = []
 
@@ -128,7 +133,15 @@ class Base_BGP_fit:
 
     def _mf_chif_mismatch(self, chif_mf, t0, T, spherical_modes):
         """
-        Compute the mismatch for given mass and spin parameters.
+        Compute the mismatch for a given mass and spin parameters.
+
+        Args:
+            chif_mf (tuple): Tuple containing the remnant spin magnitude and mass.
+            t0 (float): The start time for the fitting.
+            T (float): Duration of the fitting window.
+            spherical_modes (list): List of spherical modes to consider.
+        Returns:
+            float: The mismatch value for the given mass and spin parameters.
         """
         chif_mag, Mf = chif_mf
         best_fit = qnmfits.multimode_ringdown_fit(
@@ -146,7 +159,16 @@ class Base_BGP_fit:
 
     def _get_nonlinear_mf_chif(self, t0, T, spherical_modes, chif_ref, Mf_ref):
         """
-        Compute mass and spin parameters for each t0 using least-squares and mismatch minimization.
+        Perform a nonlinear fit to find the remnant mass and spin parameters
+
+        Args:
+            t0 (float): The start time for the fitting.
+            T (float): Duration of the fitting window.
+            spherical_modes (list): List of spherical modes to consider.
+            chif_ref (float): Reference remnant spin.
+            Mf_ref (float): Reference remnant mass.
+        Returns:
+            tuple: A tuple containing the best-fit remnant spin and mass.
         """
         # TODO: Optimise this
         initial_params = (chif_ref, Mf_ref)
@@ -166,12 +188,11 @@ class Base_BGP_fit:
 
     def _get_frequency(self, mode, chif, Mf):
         """
-        Compute the frequency for a given QNM mode and spin.
-
+        Compute the frequency for a given QNM mode.
         Args:
             mode (tuple): QNM mode (ell, m, n, sign).
             chif (float): Remnant spin.
-
+            Mf (float): Remnant mass.
         Returns:
             complex: Frequency of the QNM.
         """
@@ -184,14 +205,14 @@ class Base_BGP_fit:
 
     def _get_mixing(self, mode, sph_mode, chif):
         """
-        Compute the mixing coefficient for a given QNM mode.
-
+        Compute the mixing coefficient for a given QNM mode and spherical mode.
+        For higher order QNMs, this is a placeholder that returns 1 + 0j.
         Args:
             mode (tuple): QNM mode (ell, m, n, sign).
+            sph_mode (tuple): Spherical mode (ell, m).
             chif (float): Remnant spin.
-
         Returns:
-            complex: Mixing coefficient of the QNM. Or, if quadratic or cubic, 1.
+            complex: Mixing coefficient for the QNM mode.
         """
         ell, m = sph_mode
         if len(mode) == 4:
@@ -204,7 +225,16 @@ class Base_BGP_fit:
 
     def _get_ls_amplitudes(self, t0, Mf, chif, t0_method="closest"):
         """
-        Compute least-squares amplitudes and reference parameters.
+        Perform the least-squares fit to obtain reference amplitudes for the QNM modes.
+
+        Args:
+            t0 (float): The start time for the fitting.
+            Mf (float): Reference remnant mass.
+            chif (float): Reference remnant dimensionless spin.
+            t0_method (str): Method for determining the start time of the fitting ("geq" or "closest").
+        Returns:
+            tuple: A tuple containing the complex coefficients (C_0) and the reference parameters
+            (real and imaginary parts, plus mass and spin if requested).
         """
         # Perform the multimode ringdown fit using qnmfits
         ls_fit = qnmfits.multimode_ringdown_fit(
@@ -232,6 +262,18 @@ class Base_BGP_fit:
         return C_0, ref_params
 
     def _get_mixing_frequency_terms(self, chif, Mf):
+        """
+        Compute the mixing coefficients and frequencies for the QNM modes.
+        Args:
+            chif (float): Remnant spin.
+            Mf (float): Remnant mass.
+        Returns:
+            tuple: A tuple containing:
+                - frequencies: Array of frequencies for each QNM mode.
+                - frequency_derivatives: Array of frequency derivatives with respect to chif.
+                - mixing_coefficients: 2D array of mixing coefficients for each spherical mode and QNM mode.
+                - mixing_derivatives: 2D array of mixing coefficient derivatives with respect to chif.
+        """
         frequencies = jnp.array([self._get_frequency(mode, chif, Mf) for mode in self.modes])
         frequency_derivatives = jnp.array([self._get_domega_dchif(mode, chif, Mf) for mode in self.modes])
         mixing_coefficients = jnp.array(
@@ -243,52 +285,119 @@ class Base_BGP_fit:
         return frequencies, frequency_derivatives, mixing_coefficients, mixing_derivatives
 
     def get_inverse(self, matrix, epsilon=1e-10):
+        """
+        Compute the inverse of a matrix using eigenvalue decomposition.
+        This ensures numerical stability by preventing negative eigenvalues.
+        Args:
+            matrix (jnp.ndarray): The matrix to be inverted.
+            epsilon (float): Small value to ensure numerical stability.
+        Returns:
+            jnp.ndarray: The inverse of the input matrix.
+        """
+
         vals, vecs = jnp.linalg.eigh(matrix)
         vals = jnp.maximum(vals, epsilon)
         return jnp.einsum("ik, k, jk -> ij", vecs, 1 / vals, vecs)
 
-    def compute_kernel_matrix(self, hyperparams, analysis_times):
-        return jnp.array(self.kernel(jnp.array(analysis_times), **hyperparams) + jnp.eye(len(analysis_times)) * 1e-13)
-
     @partial(jax.jit, static_argnames=["self"])
     def get_inverse_noise_covariance_matrix(self, analysis_times):
+        """
+        Compute the inverse noise covariance matrix for the GP kernel.
+        Args:
+            analysis_times (array): The times at which the kernel is evaluated.
+        Returns:
+            jnp.ndarray: A 2D array representing the inverse noise covariance matrix for each spherical mode.
+        """
         return jnp.array(
             [
-                self.get_inverse(self.compute_kernel_matrix(self.kernel_param_dict[mode], analysis_times)).real
+                self.get_inverse(compute_kernel_matrix(analysis_times, self.kernel_param_dict[mode], self.kernel)).real
                 for mode in self.spherical_modes
             ],
             dtype=jnp.float64,
         )
 
     def _get_exponential_terms(self, analysis_times, frequencies):
-        """Compute the exponential terms for the QNM fitting."""
+        """
+        Compute the exponential terms for the QNM modes at the given analysis times.
+        Args:
+            analysis_times (array): The times at which the exponential terms are evaluated.
+            frequencies (array): The frequencies of the QNM modes.
+        Returns:
+            jnp.ndarray: A 2D array of exponential terms of shape: QNMs x analysis times.
+
+        """
         return jnp.array([jnp.exp(-1j * frequencies[i] * analysis_times) for i in range(self.modes_length)])
 
     def _get_domega_dchif(self, mode, chif, Mf, delta=1.0e-6):
-        """Compute domega/dchif for a given QNM."""
+        """
+        Compute the derivative of the frequency with respect to chif for a given QNM mode.
+        Args:
+            mode (tuple): QNM mode (ell, m, n, sign).
+            chif (float): Reference remnant spin.
+            Mf (float): Reference remnant mass.
+        Returns:
+            float: The derivative of the frequency with respect to chif.
+
+        """
         omega_plus = self._get_frequency(mode, chif + delta, Mf)
         omega_minus = self._get_frequency(mode, chif - delta, Mf)
         return (omega_plus - omega_minus) / (2 * delta)
 
     def _get_dmu_dchif(self, mode, sph_mode, chif, delta=1.0e-6):
-        """Compute dmu/dchif for a given QNM."""
+        """
+        Compute the derivative of the mixing coefficient with respect to chif for a given QNM mode and spherical mode.
+        Args:
+            mode (tuple): QNM mode (ell, m, n, sign).
+            sph_mode (tuple): Spherical mode (ell, m).
+            chif (float): Reference remnant spin.
+
+        Returns:
+            float: The derivative of the mixing coefficient with respect to chif.
+
+        """
         mu_plus = self._get_mixing(mode, sph_mode, chif=chif + delta)
         mu_minus = self._get_mixing(mode, sph_mode, chif=chif - delta)
         return (mu_plus - mu_minus) / (2 * delta)
 
     def _get_re_amplitude_term(self, exponential_terms, mixing_coefficients):
-        """Computes the real part of the amplitude model term for a given set of QNMs. Returns a
-        len(spherical_modes) x len(t_list) array."""
+        """
+        Computes the model term for the real part of the amplitudes for a given set of QNMs.
+
+        Args:
+            exponential_terms (jnp.ndarray): A 2D array of exponential terms of shape: QNMs x times.
+            mixing_coefficients (jnp.ndarray): A 2D array of mixing coefficients of shape: spherical modes x QNMs.
+        Returns:
+            jnp.ndarray: A 3D array of shape: QNMs x spherical modes x analysis times.
+
+        """
         return jnp.einsum("pt,sp->pst", exponential_terms, mixing_coefficients)
 
     def _get_im_amplitude_term(self, exponential_terms, mixing_coefficients):
-        """Computes the imaginary part of the amplitude model term for a given set of QNMs. Returns a
-        len(spherical_modes) x len(t_list) array."""
+        """
+        Computes the model term for the imaginary part of the amplitudes for a given set of QNMs.
+
+        Args:
+            exponential_terms (jnp.ndarray): A 2D array of exponential terms of shape: QNMs x times.
+            mixing_coefficients (jnp.ndarray): A 2D array of mixing coefficients of shape: spherical modes x QNMs.
+        Returns:
+            jnp.ndarray: A 3D array of shape: QNMs x spherical modes x analysis times.
+
+        """
         return jnp.einsum("pt,sp->pst", exponential_terms, mixing_coefficients)
 
     def _get_mass_term(self, analysis_times, ls_amplitudes, frequencies, exponential_terms, mixing_coefficients, Mf):
-        """Computes the Mf term for a given set of QNMs. Returns a len(spherical_modes) x len(t_list)
-        array."""
+        """
+        Computes the mass term for a given set of QNMs.
+
+        Args:
+            analysis_times (jnp.ndarray): The times at which the mass term is evaluated.
+            ls_amplitudes (jnp.ndarray): The least-squares reference amplitudes for the QNMs.
+            frequencies (jnp.ndarray): The frequencies of the QNMs.
+            exponential_terms (jnp.ndarray): A 2D array of exponential terms of shape: QNMs x analysis times.
+            mixing_coefficients (jnp.ndarray): A 2D array of mixing coefficients of shape: spherical modes x QNMs.
+        Returns:
+            jnp.ndarray: A 2D array of shape: spherical modes x analysis times representing the mass term.
+        """
         return jnp.einsum(
             "p,sp,pt->st",
             1j * frequencies / Mf * ls_amplitudes,
@@ -305,8 +414,21 @@ class Base_BGP_fit:
         mixing_derivatives,
         frequency_derivatives,
     ):
-        """Computes the chif_mag term for a given set of QNMs. Returns a len(spherical_modes) x
-        len(t_list) array."""
+        """
+
+        Computes the chif term for a given set of QNMs.
+
+        Args:
+            analysis_times (jnp.ndarray): The times at which the chif term is evaluated.
+            ls_amplitudes (jnp.ndarray): The least-squares reference amplitudes for the QNMs.
+            exponential_terms (jnp.ndarray): A 2D array of exponential terms of shape: QNMs x analysis times.
+            mixing_coefficients (jnp.ndarray): A 2D array of mixing coefficients of shape: spherical modes x QNMs.
+            mixing_derivatives (jnp.ndarray): A 2D array of mixing coefficient derivatives with respect to chif.
+            frequency_derivatives (jnp.ndarray): A 2D array of frequency derivatives with respect to chif.
+        Returns:
+            jnp.ndarray: A 2D array of shape: spherical modes x analysis times representing the chif term.
+
+        """
         return jnp.einsum(
             "p,pt,spt->st",
             ls_amplitudes,
@@ -319,10 +441,19 @@ class Base_BGP_fit:
         )
 
     def get_const_term(self, ls_amplitudes, exponential_terms, mixing_coefficients):
-        """Computes the H_* term for a given set of QNMs."""
+        """
+        Computes the constant (reference) term for the model.
+
+        Args:
+            ls_amplitudes (jnp.ndarray): The least-squares reference amplitudes for the QNMs.
+            exponential_terms (jnp.ndarray): A 2D array of exponential terms of shape: QNMs x analysis times.
+            mixing_coefficients (jnp.ndarray): A 2D array of mixing coefficients of shape: spherical modes x QNMs.
+        Returns:
+            jnp.ndarray: A 2D array of shape: spherical modes x analysis times representing the constant term.
+
+        """
         return jnp.einsum("p,sp,pt->st", ls_amplitudes, mixing_coefficients, exponential_terms)
 
-    # @partial(jax.jit, static_argnames=["self"]) - can't do this now in case Mf is updated!
     def get_model_terms(
         self,
         model_times,
@@ -334,6 +465,23 @@ class Base_BGP_fit:
         frequency_derivatives,
         Mf,
     ):
+        """
+        Computes the model terms for the QNM fitting.
+
+        Args:
+            model_times (jnp.ndarray): The times at which the model terms are evaluated.
+            ls_amplitudes (jnp.ndarray): The least-squares reference amplitudes for the QNMs.
+            exponential_terms (jnp.ndarray): A 2D array of exponential terms of shape: QNMs x analysis times.
+            mixing_coefficients (jnp.ndarray): A 2D array of mixing coefficients of shape: spherical modes x QNMs.
+            mixing_derivatives (jnp.ndarray): A 2D array of mixing coefficient derivatives with respect to chif.
+            frequencies (jnp.ndarray): The frequencies of the QNMs.
+            frequency_derivatives (jnp.ndarray): A 2D array of frequency derivatives with respect to chif.
+            Mf (float): Reference remnant mass.
+        Returns:
+            jnp.ndarray: A 3D array of shape: model parameters x spherical modes x model times representing the model terms.
+
+        """
+
         sph_matrix = jnp.zeros(
             (self.params_length, self.spherical_modes_length, len(model_times)),
             dtype=jnp.complex128,
@@ -365,12 +513,15 @@ class Base_BGP_fit:
     def get_fisher_matrix(self, analysis_times, model_terms, inverse_noise_covariance_matrix):
         """
 
-        Compute the Fisher matrix.
+        Computes the Fisher matrix for the parameters in `params`.
 
+        Args:
+            analysis_times (jnp.ndarray): The times at which the Fisher matrix is evaluated.
+            model_terms (jnp.ndarray): A 3D array of model terms of shape: model parameters x spherical modes x analysis times.
+            inverse_noise_covariance_matrix (jnp.ndarray): The inverse noise covariance matrix for the GP kernel.
         Returns:
-            jnp.ndarray: A 2D array representing the Fisher matrix,
-            where the element at (i, j) corresponds to the Fisher information
-            between the i-th and j-th parameters.
+            jnp.ndarray: A 2D JAX array representing the Fisher matrix, where each element corresponds to a pair of parameters in `params`.
+
         """
 
         if self.is_GP_diagonal:
@@ -392,7 +543,7 @@ class Base_BGP_fit:
                 jnp.conj(model_terms),
                 model_terms,
                 inverse_noise_covariance_matrix,
-            )
+            ) * ((analysis_times[-1] - analysis_times[0]) / len(analysis_times))
 
         return jnp.real(fisher_matrix)
 
@@ -407,13 +558,14 @@ class Base_BGP_fit:
         """
         Computes the b vector for the parameters in `params`.
 
-        The b vector is calculated based on the difference between the data
-        and a constant model term (`h_0`). Each element of the b vector corresponds to
-        a parameter in `params`.
-
+        Args:
+            data_array (jnp.ndarray): The data array of shape: spherical modes x analysis times.
+            constant_term (jnp.ndarray): The constant term computed with reference parameters.
+            analysis_times (jnp.ndarray): The times at which the b vector is evaluated.
+            model_terms (jnp.ndarray): A 3D array of model terms of shape: model parameters x spherical modes x analysis times.
+            inverse_noise_covariance_matrix (jnp.ndarray): The inverse noise covariance matrix for the GP kernel.
         Returns:
-            jnp.ndarray: A 1D JAX array representing the b vector, where
-            each element corresponds to a parameter in `params`.
+            jnp.ndarray: A 1D JAX array representing the b vector, where each element corresponds to a parameter in `params`.
         """
         data_array_new = data_array - constant_term
         if self.is_GP_diagonal:
@@ -435,6 +587,6 @@ class Base_BGP_fit:
                 jnp.conj(model_terms),
                 data_array_new,
                 inverse_noise_covariance_matrix,
-            )
+            ) * ((analysis_times[-1] - analysis_times[0]) / len(analysis_times))
 
         return jnp.real(b_vector)

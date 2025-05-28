@@ -5,6 +5,15 @@ from scipy.interpolate import make_interp_spline as spline
 
 
 def sim_interpolator_data(data_dict, data_times, new_times):
+    """
+    Interpolates the data_dict onto new_times using cubic splines.
+    Args:
+        data_dict (dict): Dictionary containing the data to be interpolated.
+        data_times (array): The times corresponding to the data in data_dict.
+        new_times (array): The times at which to interpolate the data.
+    Returns:
+        dict: A dictionary containing the interpolated data at new_times.
+    """
     h = {}
     for mode in data_dict.keys():
         h_real = spline(data_times, np.real(data_dict[mode]))(new_times)
@@ -15,6 +24,14 @@ def sim_interpolator_data(data_dict, data_times, new_times):
 
 
 def sim_interpolator(sim, new_times):
+    """
+    Interpolates the simulation data onto new_times using cubic splines.
+    Args:
+        sim (qnmfits.Custom): The simulation object containing the data to be interpolated.
+        new_times (array): The times at which to interpolate the data.
+    Returns:
+        qnmfits.Custom: A new simulation object with the interpolated data.
+    """
     data_dict = sim.h
     data_times = sim.times
 
@@ -35,8 +52,20 @@ def sim_interpolator(sim, new_times):
 
 
 def get_time_shift(sim1, sim2, modes=None, delta=0.0001, alpha=0.1, t0=-100, T=100):
-    # Mask data to speed up interpolating (and shifting)
-    # But need to apply a smooth buffer
+    """
+    Computes the time shift between two simulations by maximizing the overlap of their waveforms.
+    Args:
+        sim1 (qnmfits.Custom): The first simulation object.
+        sim2 (qnmfits.Custom): The second simulation object.
+        modes (list, optional): List of modes to consider for the overlap. If None, all modes are used.
+        delta (float, optional): The time step for the new time grid. Default is 0.0001 (demonstrated to
+        be small enough and converge in BH cartography).
+        alpha (float, optional): The tapering factor for the window function. Default is 0.1.
+        t0 (float, optional): The start time for the analysis. Default is -100.
+        T (float, optional): The end time for the analysis. Default is 100.
+    Returns:
+        float: The time shift between the two simulations.
+    """
 
     if modes is None:
         modes = sim1.h.keys()
@@ -81,7 +110,16 @@ def get_time_shift(sim1, sim2, modes=None, delta=0.0001, alpha=0.1, t0=-100, T=1
 
 
 def get_inverse(matrix, epsilon=1e-10):
-    """Get the inverse of the fisher matrix - not general"""
+    """
+    Compute the inverse of a matrix using its eigenvalues and eigenvectors.
+
+    Args:
+        matrix (array): The matrix to be inverted.
+        epsilon (float): A small value to ensure numerical stability.
+    Returns:
+        array: The inverse of the input matrix.
+
+    """
     vals, vecs = scipy.linalg.eigh(matrix)
     vals = np.maximum(vals, epsilon)
     return np.einsum("ik, k, jk -> ij", vecs, 1 / vals, vecs)
@@ -91,6 +129,14 @@ def mismatch(wf_array_1, wf_array_2, inv_noise_covariance_matrix=None):
     """
     Compute the phase maximised, mismatch between two waveforms. If inv_noise_covariance_matrix is provided
     then the mismatch is computed using the inverse noise covariance matrix.
+
+    Args:
+        wf_array_1 (array): The first waveform array.
+        wf_array_2 (array): The second waveform array.
+        inv_noise_covariance_matrix (array, optional): The inverse noise covariance matrix. If None, the
+            mismatch is computed without it.
+    Returns:
+        float: The mismatch value between the two waveforms.
 
     """
 

@@ -1,8 +1,10 @@
+import os 
 import numpy as np
 import jax
 import jax.numpy as jnp
 from bgp_qnm_fits.utils import get_inverse
 
+os.environ["JAX_PLATFORMS"] = "cpu"
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 
@@ -17,9 +19,7 @@ def logoneplusexp(t):
 
 
 def smoothclip(t, sigma_max, sharpness):
-    return (
-        t - (1.0 / sharpness) * logoneplusexp(sharpness * (t - sigma_max))
-    )
+    return t - (1.0 / sharpness) * logoneplusexp(sharpness * (t - sigma_max))
 
 
 def softclip(t, sigma_max, sharpness):
@@ -96,7 +96,13 @@ def kernel_c(analysis_times, **kwargs):
 
 
 def compute_kernel_matrix(analysis_times, hyperparams, kernel, epsilon=1e-4):
-    return kernel(jnp.asarray(analysis_times), **hyperparams) + jnp.eye(len(analysis_times)) * hyperparams["sigma_max"] ** 2 * epsilon
+    return (
+        kernel(jnp.asarray(analysis_times), **hyperparams)
+        + jnp.eye(len(analysis_times)) * hyperparams["jitter_scale"] ** 2 * epsilon * 0.1 
+    )
+
+
+# * ((analysis_times[-1] - analysis_times[0]) / len(analysis_times)) ** 2
 
 
 def get_inv_GP_covariance_matrix(analysis_times, kernel, tuned_param_dict, spherical_modes=None):
@@ -122,4 +128,7 @@ def kl_divergence(p, q):
 
 
 def js_divergence(p, q):
+    """
+    The symmetric Kullback-Leibler divergence between two probability distributions p and q.
+    """
     return kl_divergence(p, q) / 2 + kl_divergence(q, p) / 2
