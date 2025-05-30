@@ -15,6 +15,10 @@ def squared_exp_element(t1, t2, period):
     return jnp.exp(-0.5 * dist**2 / period**2)
 
 
+def exponential_func(t, length_scale, t_s, sigma_max):
+    return sigma_max * jnp.exp(-(t - t_s) / length_scale)
+
+
 def logoneplusexp(t):
     return jnp.log(1 + jnp.exp(-jnp.abs(t))) + jnp.maximum(t, 0)
 
@@ -27,13 +31,13 @@ def softclip(t, sigma_max, sharpness):
     return jnp.exp(smoothclip(jnp.log(t), jnp.log(sigma_max), sharpness))
 
 
-def exponential_func(t, length_scale, t_s, sigma_max):
-    return sigma_max * jnp.exp(-(t - t_s) / length_scale)
+def smoothmax(x, x_max, sharpness):
+    return (x + x_max - np.sqrt((x - x_max) ** 2 + sharpness*x_max**2)) * 0.5
 
 
 def new_func(t, length_scale, t_s, sigma_max, sharpness):
     t = jnp.asarray(t)
-    return softclip(
+    return smoothmax(
         exponential_func(t, length_scale, t_s, sigma_max),
         sigma_max,
         sharpness,

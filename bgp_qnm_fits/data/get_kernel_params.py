@@ -66,7 +66,7 @@ SIM_TRAINING_MODE_RULES = {
     "0013": "ALL",
 }
 
-SMOOTHNESS = 16
+SMOOTHNESS = 1e-3
 EPSILON = 1 / 10
 
 # These determine the parameter and training range but do not have to match `analysis times' used later.
@@ -247,17 +247,17 @@ def get_hyperparams_GPC(R_dict, param_dict):
 
 
 if __name__ == "__main__":
-    #R_dict, param_dict = get_parameters()
-    # print("Getting hyperparameters...")
-    with open("param_dict.pkl", "rb") as f:
-        param_dict = pickle.load(f)
-    with open("R_dict.pkl", "rb") as f:
-        R_dict = pickle.load(f)
+    R_dict, param_dict = get_parameters()
+    #print("Getting hyperparameters...")
+    #with open("param_dict.pkl", "rb") as f:
+    #    param_dict = pickle.load(f)
+    #with open("R_dict.pkl", "rb") as f:
+    #    R_dict = pickle.load(f)
 
     # hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
     # print("Hyperparameters for WN:", hyperparam_list_WN)
-    hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict, param_dict)
-    print("Hyperparameters for GP:", hyperparam_list_GP)
+    #hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict, param_dict)
+    #print("Hyperparameters for GP:", hyperparam_list_GP)
     # hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict, param_dict)
     # print("Hyperparameters for GPC:", hyperparam_list_GPC)
 
