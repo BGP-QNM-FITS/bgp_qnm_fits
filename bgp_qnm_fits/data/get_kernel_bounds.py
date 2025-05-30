@@ -363,9 +363,9 @@ if __name__ == "__main__":
     with open("param_dict_mini.pkl", "wb") as f:
         pickle.dump(param_dict, f)
 
-    # with open("param_dict_mini.pkl", "rb") as f:
+    #with open("param_dict_mini.pkl", "rb") as f:
     #    param_dict = pickle.load(f)
-    # with open("R_dict_mini.pkl", "rb") as f:
+    #with open("R_dict_mini.pkl", "rb") as f:
     #    R_dict = pickle.load(f)
 
     intital_params_list = []

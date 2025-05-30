@@ -5,7 +5,8 @@ import jax.numpy as jnp
 from bgp_qnm_fits.utils import get_inverse
 
 os.environ["JAX_PLATFORMS"] = "cpu"
-jax.config.update("jax_platform_name", "cpu")
+os.environ["JAX_PLATFORM_NAME"] = "cpu"
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 jax.config.update("jax_enable_x64", True)
 
 
@@ -95,14 +96,11 @@ def kernel_c(analysis_times, **kwargs):
     )
 
 
-def compute_kernel_matrix(analysis_times, hyperparams, kernel, epsilon=1e-4):
+def compute_kernel_matrix(analysis_times, hyperparams, kernel, epsilon=1e-6):
     return (
         kernel(jnp.asarray(analysis_times), **hyperparams)
-        + jnp.eye(len(analysis_times)) * hyperparams["jitter_scale"] ** 2 * epsilon * 0.1 
+        + jnp.eye(len(analysis_times)) * hyperparams["jitter_scale"] ** 2 * epsilon
     )
-
-
-# * ((analysis_times[-1] - analysis_times[0]) / len(analysis_times)) ** 2
 
 
 def get_inv_GP_covariance_matrix(analysis_times, kernel, tuned_param_dict, spherical_modes=None):

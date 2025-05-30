@@ -8,7 +8,8 @@ from scipy.optimize import minimize
 from functools import partial
 
 os.environ["JAX_PLATFORMS"] = "cpu"
-jax.config.update("jax_platform_name", "cpu")
+os.environ["JAX_PLATFORM_NAME"] = "cpu"
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 jax.config.update("jax_enable_x64", True)
 
 
@@ -543,7 +544,7 @@ class Base_BGP_fit:
                 jnp.conj(model_terms),
                 model_terms,
                 inverse_noise_covariance_matrix,
-            ) * ((analysis_times[-1] - analysis_times[0]) / len(analysis_times))
+            ) #* ((analysis_times[-1] - analysis_times[0]) / len(analysis_times))
 
         return jnp.real(fisher_matrix)
 
@@ -587,6 +588,6 @@ class Base_BGP_fit:
                 jnp.conj(model_terms),
                 data_array_new,
                 inverse_noise_covariance_matrix,
-            ) * ((analysis_times[-1] - analysis_times[0]) / len(analysis_times))
+            ) #* ((analysis_times[-1] - analysis_times[0]) / len(analysis_times))
 
         return jnp.real(b_vector)
