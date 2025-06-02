@@ -1,20 +1,23 @@
+import jax 
+jax.config.update("jax_enable_x64", True)
+
 from .main_fit import BGP_fit
-from .GP_funcs import (
-    kernel_s,
-    kernel_main,
-    kernel_c,
+from .gp_kernels import (
+    kernel_WN,
+    kernel_GP,
+    kernel_GPC,
     compute_kernel_matrix,
     get_inv_GP_covariance_matrix,
-    js_divergence,
 )
-from .qnm_selecting_funcs import get_significance, get_significance_list
+from .qnm_funcs import get_significance, get_significance_list
 
-from .kernel_param_funcs import (
+from .gp_training import (
     get_residuals,
     train_hyper_params,
     get_params,
     get_total_log_likelihood,
     get_tuned_params,
+    js_divergence
 )
 
 from .utils import (
@@ -23,18 +26,16 @@ from .utils import (
     get_time_shift,
     get_inverse,
     mismatch,
-    log_likelihood,
 )
 from .data import get_param_data, get_residual_data, get_param_dict, SXS_CCE
 
 __all__ = [
     "BGP_fit",
-    "kernel_s",
-    "kernel_main",
-    "kernel_c",
+    "kernel_WN",
+    "kernel_GP",
+    "kernel_GPC",
     "compute_kernel_matrix",
     "get_inv_GP_covariance_matrix",
-    "js_divergence",
     "get_significance",
     "get_significance_list",
     "get_residuals",
@@ -42,12 +43,12 @@ __all__ = [
     "get_params",
     "get_total_log_likelihood",
     "get_tuned_params",
+    "js_divergence",
     "sim_interpolator",
     "sim_interpolator_data",
     "get_time_shift",
     "get_inverse",
     "mismatch",
-    "log_likelihood",
     "get_param_data",
     "get_residual_data",
     "get_param_dict",

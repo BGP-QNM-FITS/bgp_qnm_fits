@@ -53,7 +53,7 @@ def sim_interpolator(sim, new_times):
 
 def get_time_shift(sim1, sim2, modes=None, delta=0.0001, alpha=0.1, t0=-100, T=100):
     """
-    Computes the time shift between two simulations by maximizing the overlap of their waveforms.
+    Computes the time and phase shift between two simulations by maximizing the overlap of their waveforms.
     Args:
         sim1 (qnmfits.Custom): The first simulation object.
         sim2 (qnmfits.Custom): The second simulation object.
@@ -173,22 +173,3 @@ def mismatch(wf_array_1, wf_array_2, inv_noise_covariance_matrix=None):
     denominator = np.sqrt(wf_1_norm * wf_2_norm)
 
     return 1 - (numerator / denominator)
-
-
-def log_likelihood(data_array, model_array, inv_covariance_matrix):
-    """
-    Compute the log-likelihood of the data given the model.
-
-    Args:
-        data_array (array): The data array.
-        model_array (array): The model array.
-        inv_covariance_matrix (array): The inverse covariance matrix.
-
-    Returns:
-        float: The log-likelihood value.
-    """
-
-    # TODO Check this is valid (why is there a small imaginary component?)
-
-    residual = data_array - model_array
-    return np.real(-0.5 * np.einsum("bi,bj,bij->", np.conj(residual), residual, inv_covariance_matrix))

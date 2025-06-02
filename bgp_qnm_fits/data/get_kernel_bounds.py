@@ -10,9 +10,9 @@ from bgp_qnm_fits import (
     get_params,
     train_hyper_params,
     get_total_log_likelihood,
-    kernel_s,
-    kernel_main,
-    kernel_c,
+    kernel_WN,
+    kernel_GP,
+    kernel_GPC,
 )
 
 notebook_dir = Path().resolve()
@@ -93,7 +93,7 @@ T_S_LOWER, T_S_UPPER = -20, 30
 LENGTH_SCALE_LOWER, LENGTH_SCALE_UPPER = 0.1, 5
 PERIOD_LOWER, PERIOD_UPPER = 0.1, 5
 
-SMOOTHNESS_LOWER, SMOOTHNESS_UPPER = 0, 30
+SMOOTHNESS_LOWER, SMOOTHNESS_UPPER = 1e-4, 1
 LENGTH_SCALE_2_LOWER, LENGTH_SCALE_2_UPPER = 0.1, 5
 PERIOD_2_LOWER, PERIOD_2_UPPER = 0.1, 5
 A_LOWER, A_UPPER = 0.1, 0.9
@@ -156,7 +156,7 @@ HYPERPARAM_RULE_DICT_GP = {
 HYPERPARAM_RULE_DICT_GPC = {
     "sigma_max": "multiply",
     "t_s": "sum",
-    "sharpness": "replace",
+    "smoothness": "replace",
     "length_scale": "multiply",
     "period": "multiply",
     "length_scale_2": "multiply",
@@ -202,7 +202,7 @@ def get_hyperparams_WN(R_dict, param_dict):
         param_dict,
         R_dict,
         HYPERPARAM_RULE_DICT_WN,
-        kernel_s,
+        kernel_WN,
         TRAINING_SPH_MODES,
         SIM_TRAINING_MODE_RULES,
     )
@@ -220,7 +220,7 @@ def get_hyperparams_GP(R_dict, param_dict):
         param_dict,
         R_dict,
         HYPERPARAM_RULE_DICT_GP,
-        kernel_main,
+        kernel_GP,
         TRAINING_SPH_MODES,
         SIM_TRAINING_MODE_RULES,
     )
@@ -238,7 +238,7 @@ def get_hyperparams_GPC(R_dict, param_dict):
         param_dict,
         R_dict,
         HYPERPARAM_RULE_DICT_GPC,
-        kernel_c,
+        kernel_GPC,
         TRAINING_SPH_MODES,
         SIM_TRAINING_MODE_RULES,
     )
@@ -258,7 +258,7 @@ def get_hyperparams_WN_global(R_dict, param_dict):
         R_dict,
         HYPERPARAM_RULE_DICT_WN,
         analysis_times,
-        kernel_s,
+        kernel_WN,
         TRAINING_SPH_MODES,
         SIM_TRAINING_MODE_RULES,
     )
@@ -294,7 +294,7 @@ def get_hyperparams_GP_global(R_dict, param_dict):
         R_dict,
         HYPERPARAM_RULE_DICT_GP,
         analysis_times,
-        kernel_main,
+        kernel_GP,
         TRAINING_SPH_MODES,
         SIM_TRAINING_MODE_RULES,
     )
@@ -330,7 +330,7 @@ def get_hyperparams_GPC_global(R_dict, param_dict):
         R_dict,
         HYPERPARAM_RULE_DICT_GPC,
         analysis_times,
-        kernel_c,
+        kernel_GPC,
         TRAINING_SPH_MODES,
         SIM_TRAINING_MODE_RULES,
     )

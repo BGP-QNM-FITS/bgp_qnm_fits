@@ -8,12 +8,6 @@ import time
 from bgp_qnm_fits.base_fit import Base_BGP_fit
 from tqdm import tqdm
 
-os.environ["JAX_PLATFORMS"] = "cpu"
-os.environ["JAX_PLATFORM_NAME"] = "cpu"
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
-jax.config.update("jax_enable_x64", True)
-
-
 class BGP_fit(Base_BGP_fit):
     """
     A class for fitting QNM parameters to data using Bayesian inference.

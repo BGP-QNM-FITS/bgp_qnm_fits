@@ -2,7 +2,7 @@ import pickle
 import sys
 import CCE as CCE
 from pathlib import Path
-from bgp_qnm_fits import get_residuals, get_params, train_hyper_params, kernel_s, kernel_main, kernel_c
+from bgp_qnm_fits import get_residuals, get_params, train_hyper_params, kernel_WN, kernel_GP, kernel_GPC, get_tuned_params
 
 notebook_dir = Path().resolve()
 sys.path.append(str(notebook_dir.parent))
@@ -66,7 +66,7 @@ SIM_TRAINING_MODE_RULES = {
     "0013": "ALL",
 }
 
-SMOOTHNESS = 1e-3
+SMOOTHNESS = 1e-2
 EPSILON = 1 / 10
 
 # These determine the parameter and training range but do not have to match `analysis times' used later.
@@ -150,7 +150,7 @@ HYPERPARAM_RULE_DICT_GP = {
 HYPERPARAM_RULE_DICT_GPC = {
     "sigma_max": "multiply",
     "t_s": "sum",
-    "sharpness": "replace",
+    "smoothness": "replace",
     "length_scale": "multiply",
     "period": "multiply",
     "length_scale_2": "multiply",
@@ -202,7 +202,7 @@ def get_hyperparams_WN(R_dict, param_dict):
         param_dict,
         R_dict,
         HYPERPARAM_RULE_DICT_WN,
-        kernel_s,
+        kernel_WN,
         TRAINING_SPH_MODES,
         SIM_TRAINING_MODE_RULES,
     )
@@ -220,7 +220,7 @@ def get_hyperparams_GP(R_dict, param_dict):
         param_dict,
         R_dict,
         HYPERPARAM_RULE_DICT_GP,
-        kernel_main,
+        kernel_GP,
         TRAINING_SPH_MODES,
         SIM_TRAINING_MODE_RULES,
     )
@@ -238,7 +238,7 @@ def get_hyperparams_GPC(R_dict, param_dict):
         param_dict,
         R_dict,
         HYPERPARAM_RULE_DICT_GPC,
-        kernel_c,
+        kernel_GPC,
         TRAINING_SPH_MODES,
         SIM_TRAINING_MODE_RULES,
     )
@@ -248,7 +248,7 @@ def get_hyperparams_GPC(R_dict, param_dict):
 
 if __name__ == "__main__":
     R_dict, param_dict = get_parameters()
-    #print("Getting hyperparameters...")
+    print("Getting hyperparameters...")
     #with open("param_dict.pkl", "rb") as f:
     #    param_dict = pickle.load(f)
     #with open("R_dict.pkl", "rb") as f:
@@ -261,11 +261,40 @@ if __name__ == "__main__":
     # hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict, param_dict)
     # print("Hyperparameters for GPC:", hyperparam_list_GPC)
 
-    # with open("tuned_params_WN.pkl", "wb") as f:
-    #    pickle.dump(tuned_params_WN, f)
+    # TODO TEMPORARY TRAINED VALUES!! 
 
-    # with open("tuned_params_GP.pkl", "wb") as f:
-    #    pickle.dump(tuned_params_GP, f)
+    hyperparams_WN = [0.6]
+    tuned_params_WN = {}
+    for sim_id in SIM_TRAINING_MODE_RULES.keys():
+        tuned_params_WN[sim_id] = get_tuned_params(
+            param_dict[sim_id],
+            hyperparams_WN,
+            HYPERPARAM_RULE_DICT_WN,
+        )
 
-    # with open("tuned_params_GPC.pkl", "wb") as f:
-    #    pickle.dump(tuned_params_GPC, f)
+    hyperparams_GP = [0.6, 12, 0.85, 0.4]
+    tuned_params_GP = {}
+    for sim_id in SIM_TRAINING_MODE_RULES.keys():
+        tuned_params_GP[sim_id] = get_tuned_params(
+            param_dict[sim_id],
+            hyperparams_GP,
+            HYPERPARAM_RULE_DICT_GP,
+        )
+
+    hyperparams_GPC = [0.6, 12, 0.85, 0.4, 0.85, 0.4, 0.85, 0.4]
+    tuned_params_GPC = {}
+    for sim_id in SIM_TRAINING_MODE_RULES.keys():
+        tuned_params_GPC[sim_id] = get_tuned_params(
+            param_dict[sim_id],
+            hyperparams_GPC,
+            HYPERPARAM_RULE_DICT_GPC,
+        )
+
+    with open("tuned_params_WN.pkl", "wb") as f:
+        pickle.dump(tuned_params_WN, f)
+
+    with open("tuned_params_GP.pkl", "wb") as f:
+        pickle.dump(tuned_params_GP, f)
+
+    with open("tuned_params_GPC.pkl", "wb") as f:
+        pickle.dump(tuned_params_GPC, f)

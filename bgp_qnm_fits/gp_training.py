@@ -3,7 +3,7 @@ import scipy
 import qnmfits
 
 from bgp_qnm_fits.utils import get_time_shift, sim_interpolator_data
-from bgp_qnm_fits.GP_funcs import compute_kernel_matrix
+from bgp_qnm_fits.gp_kernels import compute_kernel_matrix
 from scipy.optimize import minimize
 
 
@@ -87,7 +87,7 @@ def get_params(
             "sigma_max": np.max(np.abs(R := residual_dict[(ell, m)])),
             "sigma_min": np.max(np.abs(R)) * epsilon,
             "t_s": ringdown_start,
-            "sharpness": smoothness,
+            "smoothness": smoothness,
             "length_scale": -1 / (omega := qnmfits.qnm.omega(ell, m, 0, -1 if m < 0 else 1, chif_mag, Mf)).imag,
             "period": (2 * np.pi) / omega.real,
             # For the complicated kernel only
@@ -214,6 +214,10 @@ def get_new_params(param_dict, hyperparam_list, rule_dict):
     return new_params
 
 
+def prior_logpdf(s, mu=np.log(0.01), sigma=1.0):
+  return -0.5*((np.log(s)-mu)/sigma)**2 - np.log(s*sigma*np.sqrt(2*np.pi))
+
+
 def get_total_log_likelihood(
     hyperparam_list,
     param_dict_sim_lm,
@@ -272,6 +276,11 @@ def get_total_log_likelihood(
         a_hyperparam_index = list(rule_dict.keys()).index("a")
         current_a_value = hyperparam_list[a_hyperparam_index]
         total_log_likelihood += (alpha - 1) * np.log(current_a_value) + (beta - 1) * np.log(1 - current_a_value)
+
+    if "smoothness" in rule_dict.keys():
+        smoothness_hyperparam_index = list(rule_dict.keys()).index("smoothness")
+        current_smoothness_value = hyperparam_list[smoothness_hyperparam_index]
+        total_log_likelihood += prior_logpdf(current_smoothness_value)
 
     return -total_log_likelihood
 
@@ -337,3 +346,19 @@ def get_tuned_params(param_dict_lm, hyperparams, hyperparam_rule_dict, spherical
     if spherical_modes is None:
         spherical_modes = param_dict_lm.keys()
     return {mode: get_new_params(param_dict_lm[mode], hyperparams, hyperparam_rule_dict) for mode in spherical_modes}
+
+
+def kl_divergence(p, q):
+    dim = p.shape[0]
+    trace_term = np.trace(np.linalg.solve(q, p))
+    log_det_p = np.linalg.slogdet(p)[1]
+    log_det_q = np.linalg.slogdet(q)[1]
+    kl_div = 0.5 * (trace_term - dim + log_det_q - log_det_p)
+    return kl_div
+
+
+def js_divergence(p, q):
+    """
+    The symmetric Kullback-Leibler divergence between two probability distributions p and q.
+    """
+    return kl_divergence(p, q) / 2 + kl_divergence(q, p) / 2

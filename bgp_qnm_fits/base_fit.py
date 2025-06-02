@@ -3,15 +3,9 @@ import os
 import jax
 import jax.numpy as jnp
 
-from bgp_qnm_fits.GP_funcs import compute_kernel_matrix
+from bgp_qnm_fits.gp_kernels import compute_kernel_matrix
 from scipy.optimize import minimize
 from functools import partial
-
-os.environ["JAX_PLATFORMS"] = "cpu"
-os.environ["JAX_PLATFORM_NAME"] = "cpu"
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
-jax.config.update("jax_enable_x64", True)
-
 
 class Base_BGP_fit:
     """
