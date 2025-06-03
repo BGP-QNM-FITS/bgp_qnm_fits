@@ -14,7 +14,7 @@ def exponential_func(t, length_scale, t_s, sigma_max):
 
 
 def smoothmax(x, x_max, smoothness):
-    return (x + x_max - jnp.sqrt((x - x_max) ** 2 + smoothness*x_max**2)) * 0.5
+    return (x + x_max - jnp.sqrt((x - x_max) ** 2 + 1e-3*x_max**2)) * 0.5
 
 
 def new_func(t, length_scale, t_s, sigma_max, smoothness):
@@ -28,7 +28,7 @@ def new_func(t, length_scale, t_s, sigma_max, smoothness):
 
 def periodic_kernel(t1, t2, length_scale, period):
     dist = jnp.abs(t1[:, None] - t2[None, :])
-    return jnp.exp(-2 * jnp.sin(np.pi * dist / period) ** 2 / length_scale**2)
+    return jnp.exp(-2 * jnp.sin(jnp.pi * dist / period) ** 2 / length_scale**2)
 
 
 def kernel_WN(analysis_times, **kwargs):

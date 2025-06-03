@@ -186,6 +186,20 @@ def GP_log_likelihood(K, f):
         float: The log likelihood of the Gaussian Process.
     """
     _, logdet = np.linalg.slogdet(K)
+    # Check for numerical instability
+    try:
+        # Check condition number
+        eigvals = scipy.linalg.eigvalsh(K)
+        condition_number = np.max(eigvals) / np.min(eigvals)
+        
+        # Check for negative eigenvalues or very small eigenvalues
+        if np.any(eigvals <= 0):
+            print(f"Warning: K has very small or negative eigenvalues: {min(eigvals)}")
+            
+        if condition_number > 1e8:
+            print(f"Warning: K is ill-conditioned with condition number {condition_number}")
+    except:
+        print("Error: Numerical instability detected in covariance matrix K")
     return -0.5 * (np.dot(f, scipy.linalg.solve(K, f, assume_a="pos")) + logdet + len(f) * np.log(2 * np.pi))
 
 
