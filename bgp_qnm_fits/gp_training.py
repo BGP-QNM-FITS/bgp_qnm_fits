@@ -186,20 +186,6 @@ def GP_log_likelihood(K, f):
         float: The log likelihood of the Gaussian Process.
     """
     _, logdet = np.linalg.slogdet(K)
-    # Check for numerical instability
-    try:
-        # Check condition number
-        eigvals = scipy.linalg.eigvalsh(K)
-        condition_number = np.max(eigvals) / np.min(eigvals)
-        
-        # Check for negative eigenvalues or very small eigenvalues
-        if np.any(eigvals <= 0):
-            print(f"Warning: K has very small or negative eigenvalues: {min(eigvals)}")
-            
-        if condition_number > 1e8:
-            print(f"Warning: K is ill-conditioned with condition number {condition_number}")
-    except:
-        print("Error: Numerical instability detected in covariance matrix K")
     return -0.5 * (np.dot(f, scipy.linalg.solve(K, f, assume_a="pos")) + logdet + len(f) * np.log(2 * np.pi))
 
 
@@ -228,7 +214,7 @@ def get_new_params(param_dict, hyperparam_list, rule_dict):
     return new_params
 
 
-def prior_logpdf(s, mu=np.log(0.01), sigma=1.0):
+def prior_logpdf(s, mu=np.log(0.003), sigma=1.0):
   return -0.5*((np.log(s)-mu)/sigma)**2 - np.log(s*sigma*np.sqrt(2*np.pi))
 
 
@@ -291,10 +277,10 @@ def get_total_log_likelihood(
         current_a_value = hyperparam_list[a_hyperparam_index]
         total_log_likelihood += (alpha - 1) * np.log(current_a_value) + (beta - 1) * np.log(1 - current_a_value)
 
-    if "smoothness" in rule_dict.keys():
-        smoothness_hyperparam_index = list(rule_dict.keys()).index("smoothness")
-        current_smoothness_value = hyperparam_list[smoothness_hyperparam_index]
-        total_log_likelihood += prior_logpdf(current_smoothness_value)
+    #if "smoothness" in rule_dict.keys():
+    #    smoothness_hyperparam_index = list(rule_dict.keys()).index("smoothness")
+    #    current_smoothness_value = hyperparam_list[smoothness_hyperparam_index]
+    #    total_log_likelihood += prior_logpdf(current_smoothness_value)
 
     return -total_log_likelihood
 

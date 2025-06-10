@@ -3,6 +3,7 @@ jax.config.update("jax_enable_x64", True)
 
 from .main_fit import BGP_fit
 from .gp_kernels import (
+    kernel_test,
     kernel_WN,
     kernel_GP,
     kernel_GPC,
@@ -26,11 +27,13 @@ from .utils import (
     get_time_shift,
     get_inverse,
     mismatch,
+    weighted_chi2,
 )
 from .data import get_param_data, get_residual_data, get_param_dict, SXS_CCE
 
 __all__ = [
     "BGP_fit",
+    "kernel_test",
     "kernel_WN",
     "kernel_GP",
     "kernel_GPC",
@@ -49,6 +52,7 @@ __all__ = [
     "get_time_shift",
     "get_inverse",
     "mismatch",
+    "weighted_chi2",
     "get_param_data",
     "get_residual_data",
     "get_param_dict",

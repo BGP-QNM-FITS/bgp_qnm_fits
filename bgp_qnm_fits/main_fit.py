@@ -4,7 +4,9 @@ import os
 import jax
 import jax.numpy as jnp
 import time
+jax.config.update("jax_enable_x64", True)
 
+from bgp_qnm_fits.gp_kernels import compute_kernel_matrix
 from bgp_qnm_fits.base_fit import Base_BGP_fit
 from tqdm import tqdm
 
@@ -246,6 +248,7 @@ class BGP_fit(Base_BGP_fit):
         """
         return constant_term + jnp.einsum("p,pst->st", mean_vector - ref_params, model_terms)
 
+
     def get_fit_at_t0(self, t0):
         """
         Perform the fit at a specific time t0.
@@ -289,14 +292,14 @@ class BGP_fit(Base_BGP_fit):
         )
         constant_term = self.get_const_term(ls_amplitudes, exponential_terms, mixing_coefficients)
 
-        inverse_noise_covariance_matrix = self.get_inverse_noise_covariance_matrix(analysis_times)
-        fisher_matrix = self.get_fisher_matrix(model_times, model_terms, inverse_noise_covariance_matrix)
+        noise_covariance_matrix = self.get_noise_covariance_matrix(analysis_times)
+        fisher_matrix = self.get_fisher_matrix(model_times, model_terms, noise_covariance_matrix)
         b_vector = self.get_b_vector(
             masked_data_array,
             constant_term,
             model_times,
             model_terms,
-            inverse_noise_covariance_matrix,
+            noise_covariance_matrix,
         )
 
         mean_vector = jnp.linalg.solve(fisher_matrix, b_vector) + ref_params
@@ -315,6 +318,7 @@ class BGP_fit(Base_BGP_fit):
         # weighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles, samples_weights)
         unweighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles)
         model_array_linear = self.get_model_linear(constant_term, mean_vector, ref_params, model_terms)
+
         model_array_nonlinear = self.get_model_nonlinear(mean_vector, analysis_times, Mf_ref, chif_ref)
 
         fit = {
@@ -325,7 +329,7 @@ class BGP_fit(Base_BGP_fit):
             "frequency_derivatives": frequency_derivatives,
             "mixing_coefficients": mixing_coefficients,
             "mixing_derivatives": mixing_derivatives,
-            "inv_noise_covariance": inverse_noise_covariance_matrix,
+            "noise_covariance": noise_covariance_matrix,
             "fisher_matrix": fisher_matrix,
             "covariance": covariance_matrix,
             "b_vector": b_vector,

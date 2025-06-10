@@ -1,6 +1,8 @@
 import numpy as np
 import qnmfits
 import scipy
+import jax.numpy as jnp
+from jax.scipy.linalg import cholesky, solve_triangular
 from scipy.interpolate import make_interp_spline as spline
 
 
@@ -123,6 +125,7 @@ def get_inverse(matrix, epsilon=1e-10):
     vals, vecs = scipy.linalg.eigh(matrix)
     vals = np.maximum(vals, epsilon)
     return np.einsum("ik, k, jk -> ij", vecs, 1 / vals, vecs)
+    #return np.linalg.inv(matrix)
 
 
 def mismatch(wf_array_1, wf_array_2, inv_noise_covariance_matrix=None):
@@ -173,3 +176,10 @@ def mismatch(wf_array_1, wf_array_2, inv_noise_covariance_matrix=None):
     denominator = np.sqrt(wf_1_norm * wf_2_norm)
 
     return 1 - (numerator / denominator)
+
+
+def weighted_chi2(residual, noise_covariance_matrix):
+    L = cholesky(noise_covariance_matrix, lower=True)
+    L_residual = solve_triangular(L, residual, lower=True)
+    Kinv_residual = solve_triangular(jnp.transpose(L, [0,2,1]), L_residual, lower=False)
+    return jnp.einsum("st, st -> ", jnp.conj(residual), Kinv_residual).item().real
