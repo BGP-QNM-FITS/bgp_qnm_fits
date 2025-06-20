@@ -8,6 +8,7 @@ GP_PARAMS_PATH = os.path.join(DATA_DIR, "tuned_params_GP.pkl")
 GPc_PARAMS_PATH = os.path.join(DATA_DIR, "tuned_params_GPC.pkl")
 
 RESIDUAL_PATH = os.path.join(DATA_DIR, "R_dict.pkl")
+RESIDUAL_BIG_PATH = os.path.join(DATA_DIR, "R_dict_big.pkl")
 PARAM_DICT_PATH = os.path.join(DATA_DIR, "param_dict.pkl")
 
 
@@ -26,9 +27,13 @@ def get_param_data(kernel_type):
         raise ValueError("Invalid kernel type. Choose 'WN', 'GP', or 'GPc'.")
 
 
-def get_residual_data():
-    with open(RESIDUAL_PATH, "rb") as f:
-        return pickle.load(f)
+def get_residual_data(big=False):
+    if big:
+        with open(RESIDUAL_BIG_PATH, "rb") as f:
+            return pickle.load(f)
+    else:
+        with open(RESIDUAL_PATH, "rb") as f:
+            return pickle.load(f)
 
 
 def get_param_dict():

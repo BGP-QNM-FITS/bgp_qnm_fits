@@ -1,4 +1,6 @@
 import numpy as np
+import jax.numpy as jnp
+from jax.scipy.linalg import cholesky, solve, solve_triangular
 from bgp_qnm_fits.utils import get_inverse
 
 
@@ -23,13 +25,13 @@ def marginalise(parameter_choice, parameters, mean_vector, fisher_matrix):
         The Fisher matrix of the marginalised parameters.
     """
 
-    keep_indices = np.array([i for i, p in enumerate(parameters) if p in parameter_choice])
-    marginalize_indices = [i for i in range(len(parameters)) if i not in keep_indices]
+    keep_indices = jnp.array([i for i, p in enumerate(parameters) if p in parameter_choice])
+    marginalize_indices = jnp.array([i for i in range(len(parameters)) if i not in keep_indices])
     marginal_mean = mean_vector[keep_indices]
-    Q_11 = fisher_matrix[np.ix_(keep_indices, keep_indices)]
-    Q_12 = fisher_matrix[np.ix_(keep_indices, marginalize_indices)]
-    Q_22 = fisher_matrix[np.ix_(marginalize_indices, marginalize_indices)]
-    marginal_fisher = Q_11 - Q_12 @ np.linalg.solve(Q_22, Q_12.T)
+    Q_11 = fisher_matrix[jnp.ix_(keep_indices, keep_indices)]
+    Q_12 = fisher_matrix[jnp.ix_(keep_indices, marginalize_indices)]
+    Q_22 = fisher_matrix[jnp.ix_(marginalize_indices, marginalize_indices)]
+    marginal_fisher = Q_11 - Q_12 @ solve(Q_22, Q_12.T)
 
     return marginal_mean, marginal_fisher
 
@@ -51,9 +53,9 @@ def get_significance(marginal_mean, marginal_covariance):
 
     # TODO: Fine tune b_a threshold for significance
 
-    L = np.linalg.cholesky(marginal_covariance)
-    b_a = np.linalg.solve(L, marginal_mean)
-    return 1 - np.exp(-0.5 * np.dot(b_a, b_a))
+    L = cholesky(marginal_covariance)
+    b_a = solve_triangular(L, marginal_mean)
+    return 1 - jnp.exp(-0.5 * jnp.dot(b_a, b_a))
 
     # if np.dot(b_a, b_a) > 3:
     #    return -np.exp(-0.5 * np.dot(b_a, b_a))
@@ -89,13 +91,8 @@ def get_significance_list(qnm_list, mean_vector, fisher_matrix, include_chif=Fal
     sig_list = []
     for qnm in qnm_list:
         marginal_mean, marginal_fisher = marginalise([qnm], param_list, mean_vector, fisher_matrix)
-        marginal_covariance = get_inverse(marginal_fisher, epsilon=1e-10)
-
-        try:
-            significance = get_significance(marginal_mean, marginal_covariance)
-        except np.linalg.LinAlgError as e:
-            print(f"Cholesky decomposition failed for {qnm}: {e}")
-            significance = np.nan
+        marginal_covariance = get_inverse(marginal_fisher)
+        significance = get_significance(marginal_mean, marginal_covariance)
         sig_list.append(significance)
     return sig_list
 
@@ -226,7 +223,7 @@ def get_qnm_timeseries(
 
         qnm_list_timeseries.append(qnm_list_new)
 
-        if qnm_order_reduced == [] or qnm_list_new == []:  # TODO: This can actually break when there's only one element
+        if qnm_order_reduced == [] or qnm_list_new == []:  # TODO: This will break when there's only one element
             break
 
     return qnm_list_timeseries

@@ -1,8 +1,7 @@
 import numpy as np
 import qnmfits
-import scipy
 import jax.numpy as jnp
-from jax.scipy.linalg import cholesky, solve_triangular
+from jax.scipy.linalg import eigh, cholesky, solve_triangular
 from scipy.interpolate import make_interp_spline as spline
 
 
@@ -122,13 +121,12 @@ def get_inverse(matrix, epsilon=1e-10):
         array: The inverse of the input matrix.
 
     """
-    vals, vecs = scipy.linalg.eigh(matrix)
-    vals = np.maximum(vals, epsilon)
-    return np.einsum("ik, k, jk -> ij", vecs, 1 / vals, vecs)
-    #return np.linalg.inv(matrix)
+    vals, vecs = eigh(matrix)
+    vals = jnp.maximum(vals, epsilon)
+    return jnp.einsum("ik, k, jk -> ij", vecs, 1 / vals, vecs)
 
 
-def mismatch(wf_array_1, wf_array_2, inv_noise_covariance_matrix=None):
+def mismatch(wf_array_1, wf_array_2, noise_covariance_matrix=None):
     """
     Compute the phase maximised, mismatch between two waveforms. If inv_noise_covariance_matrix is provided
     then the mismatch is computed using the inverse noise covariance matrix.
@@ -143,43 +141,26 @@ def mismatch(wf_array_1, wf_array_2, inv_noise_covariance_matrix=None):
 
     """
 
-    if inv_noise_covariance_matrix is None:
+    if noise_covariance_matrix is None:
+
         numerator = np.abs(np.sum(wf_array_1 * np.conj(wf_array_2), axis=(0, 1)))
         wf_1_norm = np.abs(np.sum(wf_array_1 * np.conj(wf_array_1), axis=(0, 1)))
         wf_2_norm = np.abs(np.sum(wf_array_2 * np.conj(wf_array_2), axis=(0, 1)))
+
     else:
-        numerator = np.abs(
-            np.einsum(
-                "bi,bj,bij->",
-                wf_array_1,
-                np.conj(wf_array_2),
-                inv_noise_covariance_matrix,
-            )
-        )
-        wf_1_norm = np.abs(
-            np.einsum(
-                "bi,bj,bij->",
-                wf_array_1,
-                np.conj(wf_array_1),
-                inv_noise_covariance_matrix,
-            )
-        )
-        wf_2_norm = np.abs(
-            np.einsum(
-                "bi,bj,bij->",
-                wf_array_2,
-                np.conj(wf_array_2),
-                inv_noise_covariance_matrix,
-            )
-        )
+
+        L = cholesky(noise_covariance_matrix, lower=True)
+
+        L_wf1 = solve_triangular(L, wf_array_1, lower=True)
+        L_wf2 = solve_triangular(L, wf_array_2, lower=True)
+
+        Kinv_wf1 = solve_triangular(jnp.transpose(L, [0, 2, 1]), L_wf1, lower=False)
+        Kinv_wf2 = solve_triangular(jnp.transpose(L, [0, 2, 1]), L_wf2, lower=False)
+
+        numerator = jnp.abs(jnp.einsum("st, st -> ", jnp.conj(wf_array_1), Kinv_wf2).item())
+        wf_1_norm = jnp.abs(jnp.einsum("st, st -> ", jnp.conj(wf_array_1), Kinv_wf1).item())
+        wf_2_norm = jnp.abs(jnp.einsum("st, st -> ", jnp.conj(wf_array_2), Kinv_wf2).item())
 
     denominator = np.sqrt(wf_1_norm * wf_2_norm)
 
     return 1 - (numerator / denominator)
-
-
-def weighted_chi2(residual, noise_covariance_matrix):
-    L = cholesky(noise_covariance_matrix, lower=True)
-    L_residual = solve_triangular(L, residual, lower=True)
-    Kinv_residual = solve_triangular(jnp.transpose(L, [0,2,1]), L_residual, lower=False)
-    return jnp.einsum("st, st -> ", jnp.conj(residual), Kinv_residual).item().real

@@ -1,14 +1,16 @@
 import numpy as np
 import qnmfits
-import os
 import jax
 import jax.numpy as jnp
 import time
+
+from bgp_qnm_fits.base_fit import Base_BGP_fit
+from bgp_qnm_fits.utils import get_inverse
+from tqdm import tqdm
+from jax.scipy.linalg import cholesky
+
 jax.config.update("jax_enable_x64", True)
 
-from bgp_qnm_fits.gp_kernels import compute_kernel_matrix
-from bgp_qnm_fits.base_fit import Base_BGP_fit
-from tqdm import tqdm
 
 class BGP_fit(Base_BGP_fit):
     """
@@ -79,6 +81,14 @@ class BGP_fit(Base_BGP_fit):
         )
         return samples, key
 
+    def linearised_frequency(self, mode, chif_sample, Mf_sample):
+        i = self.modes.index(mode)
+        return (
+            self.frequencies[i]
+            - (Mf_sample - self.Mf_ref) * self.chif_ref / self.Mf_ref
+            + (chif_sample - self.chif_ref) * self.frequency_derivatives[i]
+        )
+
     def get_amplitude_phase(self, mean, samples, t0):
         """
         Compute the amplitude and phase of the QNM parameters from the mean and samples.
@@ -116,9 +126,7 @@ class BGP_fit(Base_BGP_fit):
             Mf_samples = samples[:, -1]
 
             for i, mode in enumerate(self.modes):
-                decay_times = np.array(
-                    [qnmfits.qnm.omega_list([mode], chif, Mf)[0].imag for chif, Mf in zip(chif_samples, Mf_samples)]
-                )
+                decay_times = self.linearised_frequency(mode, chif_samples, Mf_samples).imag
                 correction_factors = jnp.exp(-decay_times * t0)
                 decay_corrected_sample_amplitudes = decay_corrected_sample_amplitudes.at[:, i].set(
                     sample_amplitudes[:, i] * correction_factors
@@ -246,8 +254,7 @@ class BGP_fit(Base_BGP_fit):
         Returns:
             model_array (array): The linear model array.
         """
-        return constant_term + jnp.einsum("p,pst->st", mean_vector - ref_params, model_terms)
-
+        return constant_term + jnp.einsum("p,stp->st", mean_vector - ref_params, model_terms)
 
     def get_fit_at_t0(self, t0):
         """
@@ -293,17 +300,19 @@ class BGP_fit(Base_BGP_fit):
         constant_term = self.get_const_term(ls_amplitudes, exponential_terms, mixing_coefficients)
 
         noise_covariance_matrix = self.get_noise_covariance_matrix(analysis_times)
-        fisher_matrix = self.get_fisher_matrix(model_times, model_terms, noise_covariance_matrix)
+        noise_covariance_lower_triangular = cholesky(noise_covariance_matrix, lower=True)
+
+        fisher_matrix = self.get_fisher_matrix(model_times, model_terms, noise_covariance_lower_triangular)
         b_vector = self.get_b_vector(
             masked_data_array,
             constant_term,
             model_times,
             model_terms,
-            noise_covariance_matrix,
+            noise_covariance_lower_triangular,
         )
 
         mean_vector = jnp.linalg.solve(fisher_matrix, b_vector) + ref_params
-        covariance_matrix = self.get_inverse(fisher_matrix)
+        covariance_matrix = get_inverse(fisher_matrix)
         samples, key = self._get_samples(mean_vector, covariance_matrix)
 
         (
@@ -330,6 +339,7 @@ class BGP_fit(Base_BGP_fit):
             "mixing_coefficients": mixing_coefficients,
             "mixing_derivatives": mixing_derivatives,
             "noise_covariance": noise_covariance_matrix,
+            "noise_covariance_lower_triangular": noise_covariance_lower_triangular,
             "fisher_matrix": fisher_matrix,
             "covariance": covariance_matrix,
             "b_vector": b_vector,

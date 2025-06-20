@@ -1,13 +1,12 @@
 import qnmfits
-import os
 import jax
 import jax.numpy as jnp
-from jax.scipy.linalg import cholesky, solve_triangular, inv
-jax.config.update("jax_enable_x64", True)
-
+from jax.scipy.linalg import solve_triangular
 from bgp_qnm_fits.gp_kernels import compute_kernel_matrix
 from scipy.optimize import minimize
-from functools import partial
+
+jax.config.update("jax_enable_x64", True)
+
 
 class Base_BGP_fit:
     """
@@ -88,10 +87,10 @@ class Base_BGP_fit:
         )
         self.is_GP_diagonal = jnp.allclose(test_kernel_matrix, jnp.diag(jnp.diagonal(test_kernel_matrix)))
 
-        #print("##################### Checks #####################")
-        #print("Is kernel diagonal?", self.is_GP_diagonal)
-        #print("Params in model:", self.params)
-        #print("##################################################")
+        # print("##################### Checks #####################")
+        # print("Is kernel diagonal?", self.is_GP_diagonal)
+        # print("Params in model:", self.params)
+        # print("##################################################")
 
     def _mask_data(self, t0):
         """
@@ -103,7 +102,7 @@ class Base_BGP_fit:
         Returns:
             tuple: A tuple containing the masked times and the corresponding data array.
         """
-        # T = self.T - t0 # TODO: REMEMBER THIS IS THE CURRENT CONVENTION!!
+        # T = self.T - t0
         start_index = jnp.argmin((self.times - t0) ** 2)
         end_index = jnp.argmin((self.times - t0 - self.T) ** 2)
         times_mask = self.times[start_index:end_index]
@@ -167,7 +166,7 @@ class Base_BGP_fit:
         Returns:
             tuple: A tuple containing the best-fit remnant spin and mass.
         """
-        # TODO: Optimise this
+
         initial_params = (chif_ref, Mf_ref)
         Mf_RANGE = (Mf_ref * 0.5, Mf_ref * 1.5)
         chif_mag_RANGE = (0.1, 0.99)
@@ -280,23 +279,8 @@ class Base_BGP_fit:
             [self._get_dmu_dchif(mode, sph_mode, chif) for sph_mode in self.spherical_modes for mode in self.modes]
         ).reshape(len(self.spherical_modes), len(self.modes))
         return frequencies, frequency_derivatives, mixing_coefficients, mixing_derivatives
-    
-    def get_inverse(self, matrix, epsilon=1e-10):
-        """
-        Compute the inverse of a matrix using eigenvalue decomposition.
-        This ensures numerical stability by preventing negative eigenvalues.
-        Args:
-            matrix (jnp.ndarray): The matrix to be inverted.
-            epsilon (float): Small value to ensure numerical stability.
-        Returns:
-            jnp.ndarray: The inverse of the input matrix.
-        """
-        eigenvalues, eigenvectors = jnp.linalg.eigh(matrix)
-        pos_eigenvalues = jnp.maximum(eigenvalues, epsilon)
-        return jnp.einsum("ik, k, jk -> ij", eigenvectors, 1 / pos_eigenvalues, eigenvectors)
 
-
-    #@partial(jax.jit, static_argnames=["self"])
+    # @partial(jax.jit, static_argnames=["self"])
     def get_noise_covariance_matrix(self, analysis_times):
         """
         Compute the noise covariance matrix for the GP kernel.
@@ -476,7 +460,8 @@ class Base_BGP_fit:
             frequency_derivatives (jnp.ndarray): A 2D array of frequency derivatives with respect to chif.
             Mf (float): Reference remnant mass.
         Returns:
-            jnp.ndarray: A 3D array of shape: model parameters x spherical modes x model times representing the model terms.
+            jnp.ndarray: A 3D array of shape:  spherical modes x model times x model parameters representing the model terms.
+            The ordering speeds up computations using the Cholesky decomposition of the noise covariance matrix later.
 
         """
 
@@ -506,9 +491,9 @@ class Base_BGP_fit:
                 self._get_mass_term(model_times, ls_amplitudes, frequencies, exponential_terms, mixing_coefficients, Mf)
             )
 
-        return sph_matrix
+        return jnp.moveaxis(sph_matrix, 0, -1)
 
-    def get_fisher_matrix(self, analysis_times, model_terms, noise_covariance_matrix):
+    def get_fisher_matrix(self, analysis_times, model_terms, noise_covariance_lower_triangular):
         """
 
         Computes the Fisher matrix for the parameters in `params`. This method uses the Cholesky decomposition
@@ -516,24 +501,27 @@ class Base_BGP_fit:
 
         Args:
             analysis_times (jnp.ndarray): The times at which the Fisher matrix is evaluated.
-            model_terms (jnp.ndarray): A 3D array of model terms of shape: model parameters x spherical modes x analysis times.
+            model_terms (jnp.ndarray): A 3D array of model terms of shape: spherical modes x analysis times x model parameters.
             noise_covariance_matrix (jnp.ndarray): The noise covariance matrix for the GP kernel: spherical modes x analysis times x analysis times.
         Returns:
             jnp.ndarray: A 2D JAX array representing the Fisher matrix, where each element corresponds to a pair of parameters in `params`.
 
         """
 
-        L = cholesky(noise_covariance_matrix, lower=True) # This has shape: spherical modes x analysis times x analysis times
-        # TODO redefine model terms to be spherical modes x analysis times x model parameters when this is created to avoid move axis 
-        L_model_terms = solve_triangular(L, jnp.moveaxis(model_terms, 0, -1), lower=True) # This has shape: spherical modes x analysis times x model parameters
-        Kinv_model_terms = solve_triangular(jnp.transpose(L, [0,2,1]), L_model_terms, lower=False) # This has shape: spherical modes x analysis times x model parameters
-        fisher_matrix = jnp.einsum("mbt, btn -> mn", jnp.conj(model_terms), Kinv_model_terms) # This has shape: model parameters x model parameters
+        L_model_terms = solve_triangular(
+            noise_covariance_lower_triangular, model_terms, lower=True
+        )  # This has shape: spherical modes x analysis times x model parameters
+        Kinv_model_terms = solve_triangular(
+            jnp.transpose(noise_covariance_lower_triangular, [0, 2, 1]), L_model_terms, lower=False
+        )  # This has shape: spherical modes x analysis times x model parameters
+        fisher_matrix = jnp.einsum(
+            "mbt, btn -> mn", jnp.conj(model_terms), Kinv_model_terms
+        )  # This has shape: model parameters x model parameters
 
         if self.is_GP_diagonal:
             return jnp.real(fisher_matrix) * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
         else:
-            return jnp.real(fisher_matrix) #* (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
-        
+            return jnp.real(fisher_matrix)
 
     def get_b_vector(
         self,
@@ -541,7 +529,7 @@ class Base_BGP_fit:
         constant_term,
         analysis_times,
         model_terms,
-        noise_covariance_matrix,
+        noise_covariance_lower_triangular,
     ):
         """
         Computes the b vector for the parameters in `params`. This method uses the Cholesky decomposition
@@ -551,81 +539,20 @@ class Base_BGP_fit:
             data_array (jnp.ndarray): The data array of shape: spherical modes x analysis times.
             constant_term (jnp.ndarray): The constant term computed with reference parameters.
             analysis_times (jnp.ndarray): The times at which the b vector is evaluated.
-            model_terms (jnp.ndarray): A 3D array of model terms of shape: model parameters x spherical modes x analysis times.
+            model_terms (jnp.ndarray): A 3D array of model terms of shape: spherical modes x analysis times x model parameters.
             noise_covariance_matrix (jnp.ndarray): The noise covariance matrix for the GP kernel.
         Returns:
             jnp.ndarray: A 1D JAX array representing the b vector, where each element corresponds to a parameter in `params`.
         """
         data_array_new = data_array - constant_term
 
-        L = cholesky(noise_covariance_matrix, lower=True)
-        L_model_terms = solve_triangular(L, jnp.moveaxis(model_terms, 0, -1), lower=True)
-        Kinv_model_terms= solve_triangular(jnp.transpose(L, [0,2,1]), L_model_terms, lower=False)
+        L_model_terms = solve_triangular(noise_covariance_lower_triangular, model_terms, lower=True)
+        Kinv_model_terms = solve_triangular(
+            jnp.transpose(noise_covariance_lower_triangular, [0, 2, 1]), L_model_terms, lower=False
+        )
         b_vector = jnp.einsum("st, stp -> p", jnp.conj(data_array_new), Kinv_model_terms)
 
         if self.is_GP_diagonal:
             return jnp.real(b_vector) * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
         else:
-            return jnp.real(b_vector) #* (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
-        
-
-    def get_b_vector_deprec(
-        self,
-        data_array,
-        constant_term,
-        analysis_times,
-        model_terms,
-        inverse_noise_covariance_matrix,
-    ):
-        """
-        Computes the b vector for the parameters in `params`.
-
-        Args:
-            data_array (jnp.ndarray): The data array of shape: spherical modes x analysis times.
-            constant_term (jnp.ndarray): The constant term computed with reference parameters.
-            analysis_times (jnp.ndarray): The times at which the b vector is evaluated.
-            model_terms (jnp.ndarray): A 3D array of model terms of shape: model parameters x spherical modes x analysis times.
-            inverse_noise_covariance_matrix (jnp.ndarray): The inverse noise covariance matrix for the GP kernel.
-        Returns:
-            jnp.ndarray: A 1D JAX array representing the b vector, where each element corresponds to a parameter in `params`.
-        """
-        data_array_new = data_array - constant_term
-
-        b_vector = jnp.einsum(
-                "pst,su,stu->p",
-                jnp.conj(model_terms),
-                data_array_new,
-                inverse_noise_covariance_matrix,
-            )
-
-        if self.is_GP_diagonal:
-            return jnp.real(b_vector) * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
-        else:
-            return jnp.real(b_vector) #* (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
-        
-
-    
-    def get_fisher_matrix_deprec(self, analysis_times, model_terms, inverse_noise_covariance_matrix):
-        """
-
-        Computes the Fisher matrix for the parameters in `params`.
-
-        Args:
-            analysis_times (jnp.ndarray): The times at which the Fisher matrix is evaluated.
-            model_terms (jnp.ndarray): A 3D array of model terms of shape: model parameters x spherical modes x analysis times.
-            inverse_noise_covariance_matrix (jnp.ndarray): The inverse noise covariance matrix for the GP kernel.
-        Returns:
-            jnp.ndarray: A 2D JAX array representing the Fisher matrix, where each element corresponds to a pair of parameters in `params`.
-
-        """
-        fisher_matrix = jnp.einsum(
-                "pst,qsu,stu->pq",
-                jnp.conj(model_terms),
-                model_terms,
-                inverse_noise_covariance_matrix,
-            )
-
-        if self.is_GP_diagonal:
-            return jnp.real(fisher_matrix) * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
-        else:
-            return jnp.real(fisher_matrix) #* (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
+            return jnp.real(b_vector)
