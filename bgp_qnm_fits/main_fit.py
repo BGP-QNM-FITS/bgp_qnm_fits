@@ -79,6 +79,7 @@ class BGP_fit(Base_BGP_fit):
             covariance_matrix,
             shape=(self.num_samples),
         )
+                
         return samples, key
 
     def linearised_frequency(self, mode, chif_sample, Mf_sample):
@@ -122,8 +123,14 @@ class BGP_fit(Base_BGP_fit):
         if self.decay_corrected:
             decay_corrected_sample_amplitudes = jnp.zeros_like(sample_amplitudes)
 
-            chif_samples = samples[:, -2]
-            Mf_samples = samples[:, -1]
+            if self.include_chif:
+                chif_samples = samples[:, -2]
+            else:
+                chif_samples = jnp.full((self.num_samples,), self.chif_ref)
+            if self.include_Mf:
+                Mf_samples = samples[:, -1]
+            else:
+                Mf_samples = jnp.full((self.num_samples,), self.Mf_ref)
 
             for i, mode in enumerate(self.modes):
                 decay_times = self.linearised_frequency(mode, chif_samples, Mf_samples).imag
@@ -256,6 +263,53 @@ class BGP_fit(Base_BGP_fit):
         """
         return constant_term + jnp.einsum("p,stp->st", mean_vector - ref_params, model_terms)
 
+    def strain_correct(self, samples):
+
+        corrected_samples = jnp.zeros_like(samples)
+
+        if self.include_chif:
+            chif_samples = samples[:, -2]
+            corrected_samples = corrected_samples.at[:, -2].set(chif_samples)
+        else:
+            chif_samples = jnp.full((self.num_samples,), self.chif_ref)
+        if self.include_Mf:
+            Mf_samples = samples[:, -1]
+            corrected_samples = corrected_samples.at[:, -1].set(Mf_samples)
+        else:
+            Mf_samples = jnp.full((self.num_samples,), self.Mf_ref)
+
+        for i, mode in enumerate(self.modes):
+            omegas = self.linearised_frequency(mode, chif_samples, Mf_samples)
+            re_A = samples[:, 2*i]
+            im_A = samples[:, 2*i+1]
+            if self.data_type == 'strain':
+                corrected_samples = corrected_samples.at[:, 2*i].set(
+                    re_A
+                ) 
+                corrected_samples = corrected_samples.at[:, 2*i+1].set(
+                    im_A
+                )
+            if self.data_type == 'news':
+                A_news = re_A + 1j * im_A
+                A_strain = A_news / (-1j * omegas)
+                corrected_samples = corrected_samples.at[:, 2*i].set(
+                    A_strain.real
+                )
+                corrected_samples = corrected_samples.at[:, 2*i+1].set(
+                    A_strain.imag
+                )
+            if self.data_type == 'psi4':
+                A_psi4 = re_A + 1j * im_A
+                A_strain = A_psi4 / (-omegas**2)
+                corrected_samples = corrected_samples.at[:, 2*i].set(
+                    A_strain.real
+                )
+                corrected_samples = corrected_samples.at[:, 2*i+1].set(
+                    A_strain.imag
+                )
+
+        return corrected_samples 
+
     def get_fit_at_t0(self, t0):
         """
         Perform the fit at a specific time t0.
@@ -315,6 +369,30 @@ class BGP_fit(Base_BGP_fit):
         covariance_matrix = get_inverse(fisher_matrix)
         samples, key = self._get_samples(mean_vector, covariance_matrix)
 
+        if self.strain_parameters:
+            samples = self.strain_correct(samples)
+            ref_params = self.strain_correct(ref_params[None, :])[0, :]
+            #mean_vector = self.strain_correct(mean_vector[None, :])[0, :]
+            #ls_amplitudes_corrected = jnp.zeros_like(ls_amplitudes)
+            #for i, mode in enumerate(self.modes):
+            #    re_A = ref_params[2*i]
+            #    im_A = ref_params[2*i+1]
+            #    ls_amplitudes_corrected = ls_amplitudes_corrected.at[i].set(
+            #        re_A + 1j * im_A
+            #    )
+            #ls_amplitudes = ls_amplitudes_corrected
+            #constant_term = self.get_const_term(ls_amplitudes, exponential_terms, mixing_coefficients)
+            #model_terms = self.get_model_terms(
+            #                    model_times,
+            #                    ls_amplitudes,
+            #                    exponential_terms,
+            #                    mixing_coefficients,
+            #                    mixing_derivatives,
+            #                    frequencies,
+            #                    frequency_derivatives,
+            #                    Mf_ref,
+            #                    )
+            
         (
             mean_amplitude,
             mean_phase,
@@ -327,7 +405,6 @@ class BGP_fit(Base_BGP_fit):
         # weighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles, samples_weights)
         unweighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles)
         model_array_linear = self.get_model_linear(constant_term, mean_vector, ref_params, model_terms)
-
         model_array_nonlinear = self.get_model_nonlinear(mean_vector, analysis_times, Mf_ref, chif_ref)
 
         fit = {

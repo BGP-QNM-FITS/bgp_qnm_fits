@@ -32,6 +32,8 @@ class Base_BGP_fit:
         spherical_modes=None,
         include_chif=False,
         include_Mf=False,
+        strain_parameters=False,
+        data_type=None
     ):
         """
         Initialize the Base_BGP_fit class.
@@ -69,6 +71,15 @@ class Base_BGP_fit:
         self.spherical_modes = spherical_modes or list(data_dict.keys())
         self.spherical_modes_length = len(self.spherical_modes)
         self.data_array = jnp.array([data_dict[mode] for mode in self.spherical_modes])
+        self.strain_parameters = strain_parameters
+        self.data_type = data_type
+
+        if self.strain_parameters:
+            if self.data_type not in ["news", "psi4", "strain"]:
+                raise ValueError(
+                    "If strain_parameters is True, data_type must be one of ['news', 'psi4', 'strain']." \
+                    "Parameters will be corrected to match the strain domain values"
+                )
 
         # By default, the base class sets the ABD mass and spin (NR values) as attributes; subclasses may override
         # this behavior to implement nonlinear mass and spin from least-squares minimization.
@@ -515,7 +526,7 @@ class Base_BGP_fit:
             jnp.transpose(noise_covariance_lower_triangular, [0, 2, 1]), L_model_terms, lower=False
         )  # This has shape: spherical modes x analysis times x model parameters
         fisher_matrix = jnp.einsum(
-            "mbt, btn -> mn", jnp.conj(model_terms), Kinv_model_terms
+            "btm, btn -> mn", jnp.conj(model_terms), Kinv_model_terms
         )  # This has shape: model parameters x model parameters
 
         if self.is_GP_diagonal:

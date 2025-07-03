@@ -1,4 +1,4 @@
-import jax
+#import jax
 from .main_fit import BGP_fit
 from .gp_kernels import (
     kernel_test,
@@ -53,6 +53,6 @@ __all__ = [
     "SXS_CCE",
 ]
 
-jax.config.update("jax_enable_x64", True)
+#jax.config.update("jax_enable_x64", True)
 
 __version__ = "0.1.0"

@@ -5,7 +5,29 @@ import qnmfits as qnmfits
 filepath = "/data/rvnd2-2/CCE_data/superrest_data"
 
 
-def SXS_CCE(ID, zero_time=(2, 2), lev="Lev5", radius="R2"):
+def get_strain_zero_time(ID, lev, radius, zero_time):
+
+    data_filepath = f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_h.pickle"
+    with open(data_filepath, "rb") as f:
+        h_prime_dict = pickle.load(f)
+
+    times = h_prime_dict.pop("times")
+
+    sim = qnmfits.Custom(
+            times,
+            h_prime_dict,
+            metadata={
+                "remnant_mass": 0,
+                "remnant_dimensionless_spin": [0,0,0],
+            },
+            zero_time=zero_time,
+        )
+    
+    return sim.zero_time 
+
+
+
+def SXS_CCE(ID, type="strain", lev="Lev5", radius="R2", zero_time=(2,2)):
 
     if ID == "0305":
 
@@ -35,12 +57,20 @@ def SXS_CCE(ID, zero_time=(2, 2), lev="Lev5", radius="R2"):
         )
 
     else:
+        
+        if type == "strain":
+            data_filepath = f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_h.pickle"
+        elif type == "news":
+            data_filepath = f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_news.pickle"
+        elif type == "psi4":
+            data_filepath = f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_psi4.pickle"
 
         with open(
-            f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}.pickle",
+            data_filepath,
             "rb",
         ) as f:
             h_prime_dict = pickle.load(f)
+
         with open(
             f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_metadata.json",
             "r",
@@ -49,6 +79,8 @@ def SXS_CCE(ID, zero_time=(2, 2), lev="Lev5", radius="R2"):
 
         times = h_prime_dict.pop("times")
 
+        strain_zero_time = get_strain_zero_time(ID, lev, radius, zero_time)
+
         sim = qnmfits.Custom(
             times,
             h_prime_dict,
@@ -56,7 +88,7 @@ def SXS_CCE(ID, zero_time=(2, 2), lev="Lev5", radius="R2"):
                 "remnant_mass": metadata["M_f"],
                 "remnant_dimensionless_spin": metadata["chi_f"],
             },
-            zero_time=zero_time,
+            zero_time=strain_zero_time,
         )
 
     return sim

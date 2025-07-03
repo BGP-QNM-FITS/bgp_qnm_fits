@@ -57,11 +57,11 @@ def get_residuals(sim_main, sim_lower, t0, T, dt=None):
 
 def get_params(
     residual_dict,
+    residual_big_times,
     Mf,
     chif_mag,
     ringdown_start,
     smoothness,
-    epsilon,
     spherical_modes=None,
 ):
     """
@@ -72,7 +72,6 @@ def get_params(
         chif_mag (float): The magnitude of the remnant dimensionless spin.
         ringdown_start (float): The start time of the ringdown phase (determined from mismatch curves in BH cartography).
         smoothness (float): The smoothness parameter for the kernel.
-        epsilon (float): An artifact from an earlier version of the code, used to avoid numerical issues.
         spherical_modes (list, optional): A list of spherical modes to consider. If None, all modes in residual_dict are used.
     Returns:
         dict: A dictionary containing the parameters for each spherical mode, with keys as (ell, m) tuples. Some items in the
@@ -82,10 +81,14 @@ def get_params(
     if spherical_modes is None:
         spherical_modes = residual_dict.keys()
 
+    # Define period over which to average late-time residual 
+
+    mask = (residual_big_times > 250)
+
     param_dict_lm = {
         (ell, m): {
             "sigma_max": np.max(np.abs(R := residual_dict[(ell, m)])),
-            "sigma_min": np.max(np.abs(R)) * epsilon,
+            "sigma_min": np.mean(np.abs(residual_dict[(ell, m)][mask])),
             "t_s": ringdown_start,
             "smoothness": smoothness,
             "length_scale": -1 / (omega := qnmfits.qnm.omega(ell, m, 0, -1 if m < 0 else 1, chif_mag, Mf)).imag,
@@ -94,8 +97,6 @@ def get_params(
             "length_scale_2": -1 / omega.imag,
             "period_2": (2 * np.pi) / omega.real,
             "a": 0.5,
-            # For jitter
-            "jitter_scale": np.max(np.abs(R)),
         }
         for ell, m in spherical_modes
     }

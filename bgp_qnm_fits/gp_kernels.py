@@ -90,8 +90,9 @@ def kernel_GPC(analysis_times, **kwargs):
     )
 
 
-def compute_kernel_matrix(analysis_times, hyperparams, kernel, epsilon=1e-6):
+def compute_kernel_matrix(analysis_times, hyperparams, kernel, epsilon=1e2):
+    # Use 1e3 for strain
     return (
         kernel(jnp.asarray(analysis_times), **hyperparams)
-        + jnp.eye(len(analysis_times)) * epsilon * hyperparams["jitter_scale"] ** 2
+        + jnp.eye(len(analysis_times)) * (hyperparams["sigma_min"] * epsilon)**2 #epsilon * hyperparams["jitter_scale"] ** 2
     )
