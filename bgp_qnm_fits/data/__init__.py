@@ -57,7 +57,6 @@ def get_param_data(kernel_type, data_type="strain"):
         else:
             raise ValueError("Invalid kernel type. Choose 'WN', 'GP', or 'GPc'.")
     elif data_type == "psi4":
-        print("CURRENTLY USING NEWS TUNING PARAMS FOR PSI4 DATA")
         if kernel_type == "WN":
             with open(WN_PSI4_PARAMS_PATH, "rb") as f:
                 return pickle.load(f)

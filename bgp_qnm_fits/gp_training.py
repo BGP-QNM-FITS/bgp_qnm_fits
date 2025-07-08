@@ -1,10 +1,16 @@
 import numpy as np
 import scipy
 import qnmfits
+import jax 
+import jax.numpy as jnp 
 
+from jax.scipy.linalg import solve 
+from jax.numpy.linalg import slogdet
 from bgp_qnm_fits.utils import get_time_shift, sim_interpolator_data
 from bgp_qnm_fits.gp_kernels import compute_kernel_matrix
 from scipy.optimize import minimize
+
+jax.config.update("jax_enable_x64", True)
 
 
 def get_residuals(sim_main, sim_lower, t0, T, dt=None):
@@ -60,8 +66,9 @@ def get_params(
     residual_big_times,
     Mf,
     chif_mag,
-    ringdown_start,
     smoothness,
+    time_shift, 
+    data_type, 
     spherical_modes=None,
 ):
     """
@@ -83,13 +90,26 @@ def get_params(
 
     # Define period over which to average late-time residual 
 
-    mask = (residual_big_times > 250)
+    max_mask = (residual_big_times > 0) 
+    min_mask = (residual_big_times > 250)
+
+    #if data_type == "strain":
+    #    regularization_factor = 1e2
+    #elif data_type == "news":
+    #    regularization_factor = 1e2
+    #elif data_type == "psi4":
+    #    regularization_factor = 1e4
+
+    regularization_factor = 1e3
+    regularization_threshold = 0 # This may still be required as the psi4 value is a bit small 
 
     param_dict_lm = {
         (ell, m): {
-            "sigma_max": np.max(np.abs(R := residual_dict[(ell, m)])),
-            "sigma_min": np.mean(np.abs(residual_dict[(ell, m)][mask])),
-            "t_s": ringdown_start,
+            "sigma_max": np.max(np.abs(residual_dict[(ell, m)][max_mask])),
+            "A_max": np.max(np.abs(residual_dict[(ell, m)][max_mask])),
+            #"A_min_reg": np.mean(np.abs(residual_dict[(ell, m)][min_mask])) * regularization_factor,
+            "A_min_reg": np.clip(np.mean(np.abs(residual_dict[(ell, m)][min_mask])), regularization_threshold, None) * regularization_factor,
+            "t_s": time_shift,
             "smoothness": smoothness,
             "length_scale": -1 / (omega := qnmfits.qnm.omega(ell, m, 0, -1 if m < 0 else 1, chif_mag, Mf)).imag,
             "period": (2 * np.pi) / omega.real,
@@ -186,8 +206,8 @@ def GP_log_likelihood(K, f):
     Returns:
         float: The log likelihood of the Gaussian Process.
     """
-    _, logdet = np.linalg.slogdet(K)
-    return -0.5 * (np.dot(f, scipy.linalg.solve(K, f, assume_a="pos")) + logdet + len(f) * np.log(2 * np.pi))
+    _, logdet = slogdet(K)
+    return -0.5 * (jnp.dot(f, solve(K, f, assume_a="pos")) + logdet + len(f) * jnp.log(2 * jnp.pi))
 
 
 def get_new_params(param_dict, hyperparam_list, rule_dict):
@@ -273,10 +293,10 @@ def get_total_log_likelihood(
             if mode_rule in {"P", "PE"}:
                 total_log_likelihood += log_likelihood_real + log_likelihood_imag
 
-    if "a" in rule_dict.keys():
-        a_hyperparam_index = list(rule_dict.keys()).index("a")
-        current_a_value = hyperparam_list[a_hyperparam_index]
-        total_log_likelihood += (alpha - 1) * np.log(current_a_value) + (beta - 1) * np.log(1 - current_a_value)
+    #if "a" in rule_dict.keys():
+    #    a_hyperparam_index = list(rule_dict.keys()).index("a")
+    #    current_a_value = hyperparam_list[a_hyperparam_index]
+    #    total_log_likelihood += (alpha - 1) * jnp.log(current_a_value) + (beta - 1) * jnp.log(1 - current_a_value)
 
     # if "smoothness" in rule_dict.keys():
     #    smoothness_hyperparam_index = list(rule_dict.keys()).index("smoothness")

@@ -17,8 +17,8 @@ def get_strain_zero_time(ID, lev, radius, zero_time):
             times,
             h_prime_dict,
             metadata={
-                "remnant_mass": 0,
-                "remnant_dimensionless_spin": [0,0,0],
+                "remnant_mass": 1,
+                "remnant_dimensionless_spin": [1,0,0],
             },
             zero_time=zero_time,
         )
@@ -60,10 +60,13 @@ def SXS_CCE(ID, type="strain", lev="Lev5", radius="R2", zero_time=(2,2)):
         
         if type == "strain":
             data_filepath = f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_h.pickle"
+            strain_zero_time = zero_time 
         elif type == "news":
             data_filepath = f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_news.pickle"
+            strain_zero_time = get_strain_zero_time(ID, lev, radius, zero_time)
         elif type == "psi4":
             data_filepath = f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_psi4.pickle"
+            strain_zero_time = get_strain_zero_time(ID, lev, radius, zero_time)
 
         with open(
             data_filepath,
@@ -78,8 +81,6 @@ def SXS_CCE(ID, type="strain", lev="Lev5", radius="R2", zero_time=(2,2)):
             metadata = json.load(f)
 
         times = h_prime_dict.pop("times")
-
-        strain_zero_time = get_strain_zero_time(ID, lev, radius, zero_time)
 
         sim = qnmfits.Custom(
             times,

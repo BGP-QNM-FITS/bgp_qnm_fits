@@ -300,7 +300,7 @@ class BGP_fit(Base_BGP_fit):
                 )
             if self.data_type == 'psi4':
                 A_psi4 = re_A + 1j * im_A
-                A_strain = A_psi4 / (-omegas**2)
+                A_strain = (A_psi4 / (-omegas**2)) * -2 # Factor of -2 to match scri convention 
                 corrected_samples = corrected_samples.at[:, 2*i].set(
                     A_strain.real
                 )
@@ -323,7 +323,7 @@ class BGP_fit(Base_BGP_fit):
         model_times = analysis_times - t0
 
         if self.use_nonlinear_params:
-            chif_ref, Mf_ref = self._get_nonlinear_mf_chif(t0, self.T, self.spherical_modes, self.chif_ref, self.Mf_ref)
+            chif_ref, Mf_ref = self.get_nonlinear_mf_chif(t0, self.T, self.spherical_modes, self.chif_ref, self.Mf_ref)
             frequencies, frequency_derivatives, mixing_coefficients, mixing_derivatives = (
                 self._get_mixing_frequency_terms(chif_ref, Mf_ref)
             )
@@ -437,6 +437,7 @@ class BGP_fit(Base_BGP_fit):
             "constant_term": constant_term,
             "model_terms": model_terms,
             "ref_params": ref_params,
+            "param_names": self.params 
         }
 
         return fit

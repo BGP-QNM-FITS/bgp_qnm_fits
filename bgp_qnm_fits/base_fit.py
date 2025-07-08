@@ -164,7 +164,7 @@ class Base_BGP_fit:
         )
         return best_fit["mismatch"]
 
-    def _get_nonlinear_mf_chif(self, t0, T, spherical_modes, chif_ref, Mf_ref):
+    def get_nonlinear_mf_chif(self, t0, T, spherical_modes, chif_ref, Mf_ref):
         """
         Perform a nonlinear fit to find the remnant mass and spin parameters
 
