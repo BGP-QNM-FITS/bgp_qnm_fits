@@ -31,7 +31,7 @@ PARAM_DICT_PATH_PSI4 = os.path.join(DATA_DIR, "param_dict_psi4.pkl")
 
 
 # Load the data files
-def get_param_data(kernel_type, data_type="strain"):
+def get_tuned_param_dict(kernel_type, data_type="strain"):
     if data_type == "strain":
         if kernel_type == "WN":
             with open(WN_PARAMS_PATH, "rb") as f:

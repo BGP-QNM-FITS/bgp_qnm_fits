@@ -100,7 +100,7 @@ def get_params(
     #elif data_type == "psi4":
     #    regularization_factor = 1e4
 
-    regularization_factor = 1e3
+    regularization_factor = 1e2
     regularization_threshold = 0 # This may still be required as the psi4 value is a bit small 
 
     param_dict_lm = {
@@ -289,14 +289,16 @@ def get_total_log_likelihood(
             f = f_dict_sim_lm[sim_id][mode]
             log_likelihood_real = GP_log_likelihood(K, f.real)
             log_likelihood_imag = GP_log_likelihood(K, f.imag)
+            if jnp.isnan(log_likelihood_real) or jnp.isnan(log_likelihood_imag):
+                breakpoint() 
             total_log_likelihood += log_likelihood_real + log_likelihood_imag
             if mode_rule in {"P", "PE"}:
                 total_log_likelihood += log_likelihood_real + log_likelihood_imag
 
-    #if "a" in rule_dict.keys():
-    #    a_hyperparam_index = list(rule_dict.keys()).index("a")
-    #    current_a_value = hyperparam_list[a_hyperparam_index]
-    #    total_log_likelihood += (alpha - 1) * jnp.log(current_a_value) + (beta - 1) * jnp.log(1 - current_a_value)
+    if "a" in rule_dict.keys():
+        a_hyperparam_index = list(rule_dict.keys()).index("a")
+        current_a_value = hyperparam_list[a_hyperparam_index]
+        total_log_likelihood += (alpha - 1) * jnp.log(current_a_value) + (beta - 1) * jnp.log(1 - current_a_value)
 
     # if "smoothness" in rule_dict.keys():
     #    smoothness_hyperparam_index = list(rule_dict.keys()).index("smoothness")

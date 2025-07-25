@@ -12,7 +12,7 @@ def kernel_Wendland(x1, x2, sigmasq=1.0, l=1.0, D=1, q=0):
   l, D, q = float(l), int(D), int(q)
   K = jnp.zeros((len(x1), len(x2)))
   j = int(D/2) + q + 1
-  tau = jnp.abs(x1[:,jnp.newaxis]-x2[jnp.newaxis,:]) / l
+  tau = jnp.abs(x1[:,jnp.newaxis]-x2[jnp.newaxis,:]) / jnp.abs(l)
   if q==0:
     K += jnp.maximum(0, 1-tau)**(j)
   elif q==1:
@@ -90,7 +90,8 @@ def kernel_GPC(analysis_times, **kwargs):
     t2 = analysis_times
     return (
         (
-            squared_exp_element(t1, t2, kwargs["period"]) ** kwargs["a"]
+            #squared_exp_element(t1, t2, kwargs["period"]) ** kwargs["a"]
+            kernel_Wendland(t1, t2, sigmasq=1.0, l=kwargs["period"], D=1, q=3) ** kwargs["a"]
             * periodic_kernel(t1, t2, kwargs["length_scale_2"], kwargs["period_2"]) ** (1 - kwargs["a"])
         )
         * new_func(

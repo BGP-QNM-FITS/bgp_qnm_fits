@@ -49,31 +49,31 @@ RINGDOWN_START_TIMES = [
 ]
 TRAINING_SPH_MODES = [
     (2, 2),
-    #(2, 1),
-    #(3, 3),
-    #(3, 2),
-    #(4, 4),
-    #(2, -2),
-    #(2, -1),
-    #(3, -3),
-    #(3, -2),
-    #(4, -4),
+    (2, 1),
+    (3, 3),
+    (3, 2),
+    (4, 4),
+    (2, -2),
+    (2, -1),
+    (3, -3),
+    (3, -2),
+    (4, -4),
 ]
 
 SIM_TRAINING_MODE_RULES = {
     "0001": "PE",
-    #"0002": "PE",
-    #"0003": "PE",
-    #"0004": "PE",
-    #"0005": "P",
-    #"0006": "P",
-    #"0007": "P",
-    #"0008": "ALL",
-    #"0009": "E",
-    #"0010": "P",
-    #"0011": "P",
-    #"0012": "P",
-    #"0013": "ALL",
+    "0002": "PE",
+    "0003": "PE",
+    "0004": "PE",
+    "0005": "P",
+    "0006": "P",
+    "0007": "P",
+    "0008": "ALL",
+    "0009": "E",
+    "0010": "P",
+    "0011": "P",
+    "0012": "P",
+    "0013": "ALL",
 }
 
 SMOOTHNESS = 1e-3
@@ -96,12 +96,12 @@ TRAINING_RANGE_GP = 60
 SIGMA_MAX_LOWER, SIGMA_MAX_UPPER = 0.01, 50
 T_S_LOWER, T_S_UPPER = -20, 30
 LENGTH_SCALE_LOWER, LENGTH_SCALE_UPPER = 0.1, 5
-PERIOD_LOWER, PERIOD_UPPER = 0.1, 5
+PERIOD_LOWER, PERIOD_UPPER = 0.1, 10
 
 # SMOOTHNESS_LOWER, SMOOTHNESS_UPPER = 1e-4, 1e-2
 LENGTH_SCALE_2_LOWER, LENGTH_SCALE_2_UPPER = 0.1, 10
 PERIOD_2_LOWER, PERIOD_2_UPPER = 0.1, 10
-A_LOWER, A_UPPER = 0, 0.9
+A_LOWER, A_UPPER = 0, 1
 
 BOUNDS_WN = [
     (SIGMA_MAX_LOWER, SIGMA_MAX_UPPER),
@@ -123,8 +123,8 @@ BOUNDS_GPC = [
 # Set initial params
 
 INITIAL_PARAMS_WN = [0.291450707195285]
-INITIAL_PARAMS_GP = [5, 0.3]
-INITIAL_PARAMS_GPC = [5, 0.3, 1, 0.3, 0.5]
+INITIAL_PARAMS_GP = [5.51806949954791, 1.608138148779154]
+INITIAL_PARAMS_GPC = [5.51806949954791, 1.608138148779154, 1, 1.608138148779154, 0.5]
 
 # Define rules for updating params
 
@@ -265,14 +265,14 @@ if __name__ == "__main__":
 
         hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict_WN, param_dict)
         hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict_GP, param_dict)
-        #hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict_GP, param_dict)
+        hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict_GP, param_dict)
         
         with open(f"tuned_params_WN_{data_type}.pkl", "wb") as f:
             pickle.dump(tuned_params_WN, f)
         with open(f"tuned_params_GP_{data_type}.pkl", "wb") as f:
             pickle.dump(tuned_params_GP, f)
-        #with open(f"tuned_params_GPC_{data_type}.pkl", "wb") as f:
-        #    pickle.dump(tuned_params_GPC, f)
+        with open(f"tuned_params_GPC_{data_type}.pkl", "wb") as f:
+            pickle.dump(tuned_params_GPC, f)
 
 
 ### Version with fixed everything except mu and sigma max (trained from t0 = 20, T= 60)

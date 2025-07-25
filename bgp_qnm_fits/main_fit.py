@@ -322,8 +322,13 @@ class BGP_fit(Base_BGP_fit):
         analysis_times, masked_data_array = self._mask_data(t0)
         model_times = analysis_times - t0
 
+        chif_nonlinear, Mf_nonlinear = self.get_nonlinear_mf_chif(t0, self.T, self.spherical_modes, self.chif_ref, self.Mf_ref)
+        _, ref_params_nonlinear = self._get_ls_amplitudes(
+            t0, Mf_nonlinear, chif_nonlinear
+        )  
+
         if self.use_nonlinear_params:
-            chif_ref, Mf_ref = self.get_nonlinear_mf_chif(t0, self.T, self.spherical_modes, self.chif_ref, self.Mf_ref)
+            chif_ref, Mf_ref = chif_nonlinear, Mf_nonlinear
             frequencies, frequency_derivatives, mixing_coefficients, mixing_derivatives = (
                 self._get_mixing_frequency_terms(chif_ref, Mf_ref)
             )
@@ -340,7 +345,7 @@ class BGP_fit(Base_BGP_fit):
         exponential_terms = self._get_exponential_terms(model_times, frequencies)
         ls_amplitudes, ref_params = self._get_ls_amplitudes(
             t0, Mf_ref, chif_ref
-        )  # TODO: Check if to get the LS amplitudes, we should always use refernce Mf, Chif.
+        )  
         model_terms = self.get_model_terms(
             model_times,
             ls_amplitudes,
@@ -437,6 +442,7 @@ class BGP_fit(Base_BGP_fit):
             "constant_term": constant_term,
             "model_terms": model_terms,
             "ref_params": ref_params,
+            "ref_params_nonlinear": ref_params_nonlinear,
             "param_names": self.params 
         }
 

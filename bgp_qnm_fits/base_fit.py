@@ -96,12 +96,12 @@ class Base_BGP_fit:
         test_kernel_matrix = jnp.array(
             self.kernel(jnp.array(test_times), **self.kernel_param_dict[self.spherical_modes[0]])
         )
-        self.is_GP_diagonal = jnp.allclose(test_kernel_matrix, jnp.diag(jnp.diagonal(test_kernel_matrix)))
+        self.is_GP_diagonal = jnp.count_nonzero(test_kernel_matrix - jnp.diag(jnp.diagonal(test_kernel_matrix))) == 0
 
-        # print("##################### Checks #####################")
-        # print("Is kernel diagonal?", self.is_GP_diagonal)
-        # print("Params in model:", self.params)
-        # print("##################################################")
+        #print("##################### Checks #####################")
+        #print("Is kernel diagonal?", self.is_GP_diagonal)
+        #print("Params in model:", self.params)
+        #print("##################################################")
 
     def _mask_data(self, t0):
         """
@@ -566,4 +566,4 @@ class Base_BGP_fit:
         if self.is_GP_diagonal:
             return jnp.real(b_vector) * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
         else:
-            return jnp.real(b_vector)
+            return jnp.real(b_vector) 

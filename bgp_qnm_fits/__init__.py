@@ -25,7 +25,7 @@ from .utils import (
     get_inverse,
     mismatch,
 )
-from .data import get_param_data, get_residual_data, get_param_dict, SXS_CCE
+from .data import get_tuned_param_dict, get_residual_data, get_param_dict, SXS_CCE
 
 __all__ = [
     "BGP_fit",
@@ -47,7 +47,7 @@ __all__ = [
     "get_time_shift",
     "get_inverse",
     "mismatch",
-    "get_param_data",
+    "get_tuned_param_dict",
     "get_residual_data",
     "get_param_dict",
     "SXS_CCE",
