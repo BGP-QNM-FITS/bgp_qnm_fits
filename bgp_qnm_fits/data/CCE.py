@@ -1,8 +1,30 @@
 import pickle
 import json
+import jax.numpy as jnp
 import qnmfits as qnmfits
 
 filepath = "/data/rvnd2-2/CCE_data/superrest_data"
+
+
+def sim_object(times, data, metadata, zero_time=(2,2)):
+
+    if type(zero_time) is tuple:
+        time_shift = times[jnp.argmax(jnp.abs(data[zero_time]))] 
+    elif type(zero_time) is float or int: 
+        time_shift = zero_time 
+    else:
+        raise ValueError("zero time choice not supported")
+
+    times -= time_shift 
+
+    return {
+        "times": times,
+        "zero_time": time_shift,
+        "h": data,
+        "Mf": metadata["M_f"],
+        "chi_f": metadata["chi_f"],
+        "chif_mag": jnp.linalg.norm(jnp.array(metadata["chi_f"])),
+    } 
 
 
 def get_strain_zero_time(ID, lev, radius, zero_time):
@@ -14,16 +36,16 @@ def get_strain_zero_time(ID, lev, radius, zero_time):
     times = h_prime_dict.pop("times")
 
     sim = qnmfits.Custom(
-            times,
-            h_prime_dict,
-            metadata={
-                "remnant_mass": 1,
-                "remnant_dimensionless_spin": [1,0,0],
-            },
-            zero_time=zero_time,
+        times,
+        h_prime_dict,
+        metadata={
+            "remnant_mass": 0,
+            "remnant_dimensionless_spin": [1, 0, 0],
+        },
+        zero_time=zero_time,
         )
     
-    return sim.zero_time 
+    return sim.zero_time
 
 
 

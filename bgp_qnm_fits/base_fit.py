@@ -151,6 +151,7 @@ class Base_BGP_fit:
             float: The mismatch value for the given mass and spin parameters.
         """
         chif_mag, Mf = chif_mf
+        
         best_fit = qnmfits.multimode_ringdown_fit(
             self.times,
             self.data_dict,

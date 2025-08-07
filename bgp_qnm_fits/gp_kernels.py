@@ -65,7 +65,7 @@ def kernel_GP(analysis_times, **kwargs):
     t2 = analysis_times
     return (
         #squared_exp_element(t1, t2, kwargs["period"])
-        kernel_Wendland(t1, t2, sigmasq=1.0, l=kwargs["period"], D=1, q=3)
+        kernel_Wendland(t1, t2, sigmasq=1.0, l=kwargs["period"], q=3)
         * new_func(
             t1,
             kwargs["length_scale"],
@@ -91,7 +91,7 @@ def kernel_GPC(analysis_times, **kwargs):
     return (
         (
             #squared_exp_element(t1, t2, kwargs["period"]) ** kwargs["a"]
-            kernel_Wendland(t1, t2, sigmasq=1.0, l=kwargs["period"], D=1, q=3) ** kwargs["a"]
+            kernel_Wendland(t1, t2, sigmasq=1.0, l=kwargs["period"], q=3) ** kwargs["a"]
             * periodic_kernel(t1, t2, kwargs["length_scale_2"], kwargs["period_2"]) ** (1 - kwargs["a"])
         )
         * new_func(
@@ -113,8 +113,8 @@ def kernel_GPC(analysis_times, **kwargs):
     )
 
 
-def compute_kernel_matrix(analysis_times, hyperparams, kernel):
+def compute_kernel_matrix(analysis_times, hyperparams, kernel, regularization_factor=1e2):
     return (
         kernel(jnp.asarray(analysis_times), **hyperparams)
-        + jnp.eye(len(analysis_times)) * hyperparams["A_min_reg"]**2 #epsilon * hyperparams["jitter_scale"] ** 2
+        + jnp.eye(len(analysis_times)) * (hyperparams["A_min_reg"] * regularization_factor) ** 2
     )

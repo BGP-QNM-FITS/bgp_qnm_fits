@@ -86,7 +86,7 @@ RESIDUAL_BIG_END = 310
 TIME_STEP = 0.1
 
 TRAINING_START_TIME_WN = 0
-TRAINING_RANGE_WN = 80
+TRAINING_RANGE_WN = 200
 
 TRAINING_START_TIME_GP = 20 
 TRAINING_RANGE_GP = 60 
@@ -263,70 +263,26 @@ if __name__ == "__main__":
 
         R_dict_WN, R_dict_GP, param_dict = get_parameters(data_type=data_type, R_lm_id_big=R_lm_id_big)
 
-        hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict_WN, param_dict)
-        hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict_GP, param_dict)
+        #hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict_WN, param_dict)
+        #hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict_GP, param_dict)
         hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict_GP, param_dict)
         
-        with open(f"tuned_params_WN_{data_type}.pkl", "wb") as f:
-            pickle.dump(tuned_params_WN, f)
-        with open(f"tuned_params_GP_{data_type}.pkl", "wb") as f:
-            pickle.dump(tuned_params_GP, f)
+        #with open(f"tuned_params_WN_{data_type}.pkl", "wb") as f:
+        #    pickle.dump(tuned_params_WN, f)
+        #with open(f"tuned_params_GP_{data_type}.pkl", "wb") as f:
+        #    pickle.dump(tuned_params_GP, f)
         with open(f"tuned_params_GPC_{data_type}.pkl", "wb") as f:
             pickle.dump(tuned_params_GPC, f)
 
 
-### Version with fixed everything except mu and sigma max (trained from t0 = 20, T= 60)
+# Strain: 
+# Optimal parameters: {'sigma_max': 0.20294461292163857} Log evidence: -3765876.728482591
+# Optimal parameters: {'sigma_max': 5.517601498993699, 'period': 1.608100776477014} Log evidence: -1740056.1988961035
 
-hyperparam_list_WN_strain = [0.1884539057633573]
-hyperparam_list_GP_strain = [6.1930717137040645, 0.38265931880613024]
+# News:
+# Optimal parameters: {'sigma_max': 0.20202315621798156} Log evidence: -4313245.295242246
+# Optimal parameters: {'sigma_max': 6.916479343926145, 'period': 1.6788343847045542} Log evidence: -2169834.025735345
 
-tuned_params_WN = {}
-tuned_params_GP = {}
-for sim in SIMNUMS:
-    tuned_params_WN[sim] = get_tuned_params(param_dict[sim], hyperparam_list_WN_strain, HYPERPARAM_RULE_DICT_WN, spherical_modes=None)
-    tuned_params_GP[sim] = get_tuned_params(param_dict[sim], hyperparam_list_GP_strain, HYPERPARAM_RULE_DICT_GP, spherical_modes=None)
-
-### Version with fixed nu and fixed time shift (3-4 July 2025) 
-
-hyperparam_list_WN_strain = [0.291450707195285]
-hyperparam_list_GP_strain = [1.7355105821067085, 0.3334169889885236] 
-
-hyperparam_list_WN_news = [0.3135866632917954]
-hyperparam_list_GP_news = [1.7648275353291094, 0.29969283952112363] 
-
-hyperparam_list_WN_psi4 = [0.31201718771610026]
-hyperparam_list_GP_psi4 = [1.0627300656346779, 0.13823248846415154] 
-
-#### Version up to 3 July (inc. time shift, nu). 
-
-hyperparam_list_WN_strain = [0.291450707195285]
-hyperparam_list_GP_strain = [0.6433438749720057, 12.071825519382735, 1.2443842751955567, 0.3942422358459211]
-hyperparam_list_GPC_strain = [1.2510383685002138, -5.23517776049999, 1.6396780693858353, 0.39328926598661273, 4.990821887052544, 1.1414985586111737, 0.8600678005516489] 
-
-hyperparam_list_WN_news = [0.2961591339223706]
-hyperparam_list_GP_news = [0.6163200395338854, 8.075565751518583, 1.3250133617942454, 0.37178491850208534]
-
-hyperparam_list_WN_psi4 = [0.2675502250902616]
-hyperparam_list_GP_psi4 = [1.3935121549152314, -19.968782952159998, 1.0667804726346821, 0.1389420816783665]
-hyperparam_list_GPC_psi4 = [3.0473501991837004, -18.41993769051296, 1.034593909413467, 0.34017403823176584, 4.824659045058732, 0.2680546231597701, 0.8961742418631116] 
-
-# print("Getting hyperparameters...")
-    #with open("param_dict_psi4.pkl", "rb") as f:
-    #    param_dict = pickle.load(f)
-    #with open("R_dict_psi4.pkl", "rb") as f:
-    #    R_dict = pickle.load(f)
-
-    #hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
-    #print("Hyperparameters for WN:", hyperparam_list_WN)
-    #hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict, param_dict)
-    #print("Hyperparameters for GP:", hyperparam_list_GP)
-    #hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict, param_dict)
-    #print("Hyperparameters for GPC:", hyperparam_list_GPC)
-
-    #hyperparam_list_WN = [0.29247586]
-    #hyperparam_list_GP = [0.74318751, 13.70846665, 1.11053798, 0.41465039]
-    #hyperparam_list_GPC = [1.69423002, 6.37401748, 0.00994697, 1.05935143, 0.37516458, 4.3820775, 4.36964301, 0.67815892]
-
-    #hyperparam_list_WN_news = [0.29524285]
-    #hyperparam_list_GP_news = [0.86340414, 7.80535758, 1.04620105, 0.3850662] 
-    #hyperparam_list_GPC_news = [1.17017152, -1.28313241, 1.21961471, 0.10000007, 1.42072186, 2.71785424, 0.06359145]
+# Psi4:
+# Optimal parameters: {'sigma_max': 0.19031816565801468} Log evidence: -4965094.051965869
+# Optimal parameters: {'sigma_max': 6.4913508308296635, 'period': 1.7270960691077046} Log evidence: -2503035.56179217

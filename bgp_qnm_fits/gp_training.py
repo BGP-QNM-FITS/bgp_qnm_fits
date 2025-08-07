@@ -100,15 +100,14 @@ def get_params(
     #elif data_type == "psi4":
     #    regularization_factor = 1e4
 
-    regularization_factor = 1e2
-    regularization_threshold = 0 # This may still be required as the psi4 value is a bit small 
+    regularization_threshold = 0
 
     param_dict_lm = {
         (ell, m): {
             "sigma_max": np.max(np.abs(residual_dict[(ell, m)][max_mask])),
             "A_max": np.max(np.abs(residual_dict[(ell, m)][max_mask])),
             #"A_min_reg": np.mean(np.abs(residual_dict[(ell, m)][min_mask])) * regularization_factor,
-            "A_min_reg": np.clip(np.mean(np.abs(residual_dict[(ell, m)][min_mask])), regularization_threshold, None) * regularization_factor,
+            "A_min_reg": np.clip(np.mean(np.abs(residual_dict[(ell, m)][min_mask])), regularization_threshold, None),
             "t_s": time_shift,
             "smoothness": smoothness,
             "length_scale": -1 / (omega := qnmfits.qnm.omega(ell, m, 0, -1 if m < 0 else 1, chif_mag, Mf)).imag,
