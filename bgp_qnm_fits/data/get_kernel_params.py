@@ -254,7 +254,8 @@ def get_hyperparams_GPC(R_dict, param_dict):
 
 if __name__ == "__main__":
 
-    for data_type in ["strain", "news", "psi4"]:
+    #for data_type in ["strain", "news", "psi4"]:
+    for data_type in ["news"]:
 
         print(f"Training on {data_type}...")
 
@@ -282,6 +283,7 @@ if __name__ == "__main__":
 # News:
 # Optimal parameters: {'sigma_max': 0.20202315621798156} Log evidence: -4313245.295242246
 # Optimal parameters: {'sigma_max': 6.916479343926145, 'period': 1.6788343847045542} Log evidence: -2169834.025735345
+# Optimal parameters: {'sigma_max': 8.28904248745442, 'period': 1.959288624090839, 'length_scale_2': 0.4204419582784812, 'period_2': 1.0019473516595827, 'a': 0.11533919911875894} 
 
 # Psi4:
 # Optimal parameters: {'sigma_max': 0.19031816565801468} Log evidence: -4965094.051965869

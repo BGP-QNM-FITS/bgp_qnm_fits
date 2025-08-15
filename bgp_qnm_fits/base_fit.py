@@ -302,6 +302,15 @@ class Base_BGP_fit:
         Returns:
             jnp.ndarray: A 2D array representing the noise covariance matrix for each spherical mode.
         """
+
+        # TODO It would be better for the noise to be calculated before it's passed to this class,
+        # then only a single noise specification would need to be passed (calculated at all times) and sliced as needed. 
+        # This would bring it in alignment with qnmfits. 
+        # Have the shape of the specification determine the covariance matrix form i.e.
+        # L ~ 1 x beta (scalar) diagonal constant
+        # L ~ 2 x beta (vector) diagonal variable
+        # L ~ 3 x beta (matrix) full GP covariance matrix
+
         return jnp.array(
             [
                 compute_kernel_matrix(analysis_times, self.kernel_param_dict[mode], self.kernel).real

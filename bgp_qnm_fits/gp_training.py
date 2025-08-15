@@ -294,10 +294,10 @@ def get_total_log_likelihood(
             if mode_rule in {"P", "PE"}:
                 total_log_likelihood += log_likelihood_real + log_likelihood_imag
 
-    if "a" in rule_dict.keys():
-        a_hyperparam_index = list(rule_dict.keys()).index("a")
-        current_a_value = hyperparam_list[a_hyperparam_index]
-        total_log_likelihood += (alpha - 1) * jnp.log(current_a_value) + (beta - 1) * jnp.log(1 - current_a_value)
+    #if "a" in rule_dict.keys():
+    #    a_hyperparam_index = list(rule_dict.keys()).index("a")
+    #    current_a_value = hyperparam_list[a_hyperparam_index]
+    #    total_log_likelihood += (alpha - 1) * jnp.log(current_a_value) + (beta - 1) * jnp.log(1 - current_a_value)
 
     # if "smoothness" in rule_dict.keys():
     #    smoothness_hyperparam_index = list(rule_dict.keys()).index("smoothness")

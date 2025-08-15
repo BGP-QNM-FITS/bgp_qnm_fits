@@ -377,6 +377,7 @@ class BGP_fit(Base_BGP_fit):
         if self.strain_parameters:
             samples = self.strain_correct(samples)
             ref_params = self.strain_correct(ref_params[None, :])[0, :]
+            ref_params_nonlinear = self.strain_correct(ref_params_nonlinear[None, :])[0, :]
             #mean_vector = self.strain_correct(mean_vector[None, :])[0, :]
             #ls_amplitudes_corrected = jnp.zeros_like(ls_amplitudes)
             #for i, mode in enumerate(self.modes):
