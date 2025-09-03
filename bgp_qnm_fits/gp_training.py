@@ -237,6 +237,9 @@ def get_new_params(param_dict, hyperparam_list, rule_dict):
 def prior_logpdf(s, mu=np.log(0.003), sigma=1.0):
     return -0.5 * ((np.log(s) - mu) / sigma) ** 2 - np.log(s * sigma * np.sqrt(2 * np.pi))
 
+def logprior_a_logit_normal(a, mu=0.0, sigma=0.5):
+    logit_a = np.log(a) - np.log1p(-a)
+    return -0.5 * ((logit_a - mu)/sigma)**2 - np.log(a) - np.log1p(-a)
 
 def get_total_log_likelihood(
     hyperparam_list,
@@ -297,6 +300,7 @@ def get_total_log_likelihood(
     #if "a" in rule_dict.keys():
     #    a_hyperparam_index = list(rule_dict.keys()).index("a")
     #    current_a_value = hyperparam_list[a_hyperparam_index]
+    #    #total_log_likelihood += logprior_a_logit_normal(current_a_value)
     #    total_log_likelihood += (alpha - 1) * jnp.log(current_a_value) + (beta - 1) * jnp.log(1 - current_a_value)
 
     # if "smoothness" in rule_dict.keys():

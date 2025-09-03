@@ -63,6 +63,32 @@ def get_significance(marginal_mean, marginal_covariance):
     #    return np.log(1 - np.exp(-0.5 * np.dot(b_a, b_a)))
 
 
+def get_log_significance(marginal_mean, marginal_covariance): 
+    L = cholesky(marginal_covariance)
+    b_a = solve_triangular(L, marginal_mean)
+    dot_product = np.dot(b_a, b_a)
+    if dot_product > 10:
+        return -np.exp(-0.5 * dot_product)
+    else:
+        return np.log(1 - np.exp(-0.5 * dot_product))
+
+
+def get_log_significance_mode(mode, qnm_list, mean_vector, fisher_matrix, include_chif=False, include_Mf=False):
+        """
+        Computes the LOG significance of a single mode from a fit to many modes.
+        
+        """
+        #TODO this is the log significance ! 
+        param_list = [qnm for qnm in qnm_list for _ in range(2)]
+        if include_chif:
+            param_list += ["chif"]
+        if include_Mf:
+            param_list += ["Mf"]
+        marginal_mean, marginal_fisher = marginalise([mode], param_list, mean_vector, fisher_matrix)
+        marginal_covariance = get_inverse(marginal_fisher)
+        return get_log_significance(marginal_mean, marginal_covariance)
+
+
 def get_significance_list(qnm_list, mean_vector, fisher_matrix, include_chif=False, include_Mf=False):
     """This computes the significance of the marginalised parameters in qnm_list_new.
 

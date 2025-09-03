@@ -262,6 +262,25 @@ class BGP_fit(Base_BGP_fit):
             model_array (array): The linear model array.
         """
         return constant_term + jnp.einsum("p,stp->st", mean_vector - ref_params, model_terms)
+    
+
+    def get_expected_chi_squared(self, noise_covariance):
+        eigvals = np.linalg.eigvals(noise_covariance)[0].real
+        normal_samples = np.random.normal(0, 1, size=(self.num_samples, len(eigvals)))
+        dist_samples = 2 * np.sum(eigvals * normal_samples**2, axis=1)
+        return dist_samples 
+    
+
+    def get_model_chi_squared(self, masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix):
+        samples, key = self._get_samples(mean_vector, covariance_matrix)
+        r_squareds = np.zeros(self.num_samples)
+        for j in range(self.num_samples):
+            theta_j = samples[j, :]
+            sample_model = self.get_model_linear(constant_term, theta_j, ref_params, model_terms)
+            residual = masked_data_array - sample_model
+            r_squared = np.einsum("st, st -> ", np.conj(residual), residual).real
+            r_squareds[j] = r_squared
+        return r_squareds
 
     def strain_correct(self, samples):
 
@@ -309,7 +328,13 @@ class BGP_fit(Base_BGP_fit):
                 )
 
         return corrected_samples 
-
+    
+    def solve_via_cholesky(self, fisher, b):
+        L = cholesky(fisher, lower=True) 
+        y = jax.scipy.linalg.solve_triangular(L, b, lower=True)
+        x = jax.scipy.linalg.solve_triangular(L.T, y, lower=False)
+        return x
+    
     def get_fit_at_t0(self, t0):
         """
         Perform the fit at a specific time t0.
@@ -370,6 +395,7 @@ class BGP_fit(Base_BGP_fit):
             noise_covariance_lower_triangular,
         )
 
+        # TODO use cholesky solve? 
         mean_vector = jnp.linalg.solve(fisher_matrix, b_vector) + ref_params
         covariance_matrix = get_inverse(fisher_matrix)
         samples, key = self._get_samples(mean_vector, covariance_matrix)
@@ -413,6 +439,10 @@ class BGP_fit(Base_BGP_fit):
         model_array_linear = self.get_model_linear(constant_term, mean_vector, ref_params, model_terms)
         model_array_nonlinear = self.get_model_nonlinear(mean_vector, analysis_times, Mf_ref, chif_ref)
 
+        expected_chi_squared = self.get_expected_chi_squared(noise_covariance_matrix)
+        model_chi_squared = self.get_model_chi_squared(masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix)
+        p_values = np.array([np.sum(expected_chi_squared < chi_sq) / len(expected_chi_squared) for chi_sq in model_chi_squared])
+
         fit = {
             "ls_amplitudes": ls_amplitudes,
             "chif_ref": chif_ref,
@@ -444,7 +474,8 @@ class BGP_fit(Base_BGP_fit):
             "model_terms": model_terms,
             "ref_params": ref_params,
             "ref_params_nonlinear": ref_params_nonlinear,
-            "param_names": self.params 
+            "param_names": self.params,
+            "p_values": p_values
         }
 
         return fit

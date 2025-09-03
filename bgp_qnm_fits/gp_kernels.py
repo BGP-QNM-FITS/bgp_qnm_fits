@@ -106,6 +106,29 @@ def kernel_GP(analysis_times, **kwargs):
         )[None, :]
     )
 
+
+def kernel_GP_test(t1, t2, **kwargs):
+    return (
+        #squared_exp_element(t1, t2, kwargs["period"])
+        kernel_Wendland(t1, t2, sigmasq=1.0, l=kwargs["period"], q=3)
+        * new_func(
+            t1,
+            kwargs["length_scale"],
+            kwargs["t_s"],
+            kwargs["sigma_max"],
+            kwargs["A_max"],
+            kwargs["smoothness"],
+        )[:, None]
+        * new_func(
+            t2,
+            kwargs["length_scale"],
+            kwargs["t_s"],
+            kwargs["sigma_max"],
+            kwargs["A_max"],
+            kwargs["smoothness"],
+        )[None, :]
+    )
+
 #squared_exp_element(t1, t2, kwargs["period"]) ** kwargs["a"]
 #+ periodic_kernel(t1, t2, kwargs["length_scale_2"], kwargs["period_2"]) * (1 - kwargs["a"])
 
@@ -142,4 +165,10 @@ def compute_kernel_matrix(analysis_times, hyperparams, kernel, regularization_fa
     return (
         kernel(jnp.asarray(analysis_times), **hyperparams)
         + jnp.eye(len(analysis_times)) * (hyperparams["A_min_reg"] * regularization_factor) ** 2
+    )
+
+def compute_kernel_matrix_test(t1, t2, hyperparams, kernel, regularization_factor=1e2):
+    return (
+        kernel(t1, t2, **hyperparams)
+        + jnp.eye(len(t1)) * (hyperparams["A_min_reg"] * regularization_factor) ** 2
     )

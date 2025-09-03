@@ -264,14 +264,14 @@ if __name__ == "__main__":
 
         R_dict_WN, R_dict_GP, param_dict = get_parameters(data_type=data_type, R_lm_id_big=R_lm_id_big)
 
-        #hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict_WN, param_dict)
-        #hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict_GP, param_dict)
+        hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict_WN, param_dict)
+        hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict_GP, param_dict)
         hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict_GP, param_dict)
         
-        #with open(f"tuned_params_WN_{data_type}.pkl", "wb") as f:
-        #    pickle.dump(tuned_params_WN, f)
-        #with open(f"tuned_params_GP_{data_type}.pkl", "wb") as f:
-        #    pickle.dump(tuned_params_GP, f)
+        with open(f"tuned_params_WN_{data_type}.pkl", "wb") as f:
+            pickle.dump(tuned_params_WN, f)
+        with open(f"tuned_params_GP_{data_type}.pkl", "wb") as f:
+            pickle.dump(tuned_params_GP, f)
         with open(f"tuned_params_GPC_{data_type}.pkl", "wb") as f:
             pickle.dump(tuned_params_GPC, f)
 
