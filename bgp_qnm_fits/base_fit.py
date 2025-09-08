@@ -227,9 +227,17 @@ class Base_BGP_fit:
             lp, mp, nprime, sign = mode
             return qnmfits.qnm.mu(ell, m, lp, mp, nprime, sign, chif)
         elif len(mode) == 8:
-            return 1 + 0j
+            lp, mp, nprime, sign, ell2, m2, nprime2, sign2 = mode
+            if mp + m2 == m:
+                return 1 + 0j
+            else:
+                return 0 + 0j
         elif len(mode) == 12:
-            return 1 + 0j
+            ell1, m1, n1, p1, ell2, m2, n2, p2, ell3, m3, n3, p3 = mode
+            if m1 + m2 + m3 == m:
+                return 1 + 0j
+            else:
+                return 0 + 0j
 
     def _get_ls_amplitudes(self, t0, Mf, chif, t0_method="closest"):
         """

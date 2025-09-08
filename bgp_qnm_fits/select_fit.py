@@ -48,7 +48,7 @@ class BGP_select(Base_BGP_fit):
         self.candidate_modes = candidate_modes
         self.n_max = n_max
         self.num_draws = int(num_draws)
-        self.new_modes, self.ppc_values = self.get_fit_at_t0(t0)
+        self.get_fit_at_t0(t0)
 
     def _get_ls_amplitudes_candidates(self, t0, Mf, chif, modes, t0_method="closest"):
         """
@@ -89,39 +89,21 @@ class BGP_select(Base_BGP_fit):
 
         return C_0, ref_params
 
-    def get_candidate_params(self, chif, Mf, t0, model_times, candidate_modes):
 
-        candidate_frequencies = jnp.array([self._get_frequency(mode, chif, Mf) for mode in candidate_modes])
-        candidate_frequency_derivatives = jnp.array([self._get_domega_dchif(mode, chif, Mf) for mode in candidate_modes])
-        candidate_mixing_coefficients = jnp.array(
-            [self._get_mixing(mode, sph_mode, chif) for sph_mode in self.spherical_modes for mode in candidate_modes]
-        ).reshape(len(self.spherical_modes), len(candidate_modes))
-        candidate_mixing_derivatives = jnp.array(
-            [self._get_dmu_dchif(mode, sph_mode, chif) for sph_mode in self.spherical_modes for mode in candidate_modes]
-        ).reshape(len(self.spherical_modes), len(candidate_modes))
-
-        candidate_exponential_terms = self._get_exponential_terms(model_times, candidate_frequencies)
-
-        return (candidate_frequencies, 
-                candidate_frequency_derivatives, 
-                candidate_mixing_coefficients, 
-                candidate_mixing_derivatives, 
-                candidate_exponential_terms
-        )
-
-    def determine_next_modes(self, modes_set, n_limit, n_max):
+    def determine_next_modes(self, current_modes, candidate_modes, n_limit, n_max):
         possible_new_modes = []
         for s in self.spherical_modes:
             if n_limit[s] + 1 <= n_max:
-                possible_new_modes.append((s[0], s[1], n_limit[s] + 1, 1))
+                if (s[0], s[1], n_limit[s] + 1, -1 if s[1] < 0 else 1) in candidate_modes:
+                    possible_new_modes.append((s[0], s[1], n_limit[s] + 1, -1 if s[1] < 0 else 1))
 
         QQNM = (2,2,0,1,2,2,0,1)
         CQNM = (2,2,0,1,2,2,0,1,2,2,0,1) 
 
-        #if QQNM not in modes_set:
-        #    possible_new_modes.append(QQNM)
-        #if CQNM not in modes_set:
-        #    possible_new_modes.append(CQNM)
+        if QQNM not in current_modes and (QQNM in candidate_modes):
+            possible_new_modes.append(QQNM)
+        if CQNM not in current_modes and (CQNM in candidate_modes):
+            possible_new_modes.append(CQNM)
 
         return possible_new_modes
     
@@ -140,15 +122,20 @@ class BGP_select(Base_BGP_fit):
 
     def get_model_linear(self, constant_term, mean_vector, ref_params, model_terms):
         return constant_term + np.einsum("p,stp->st", mean_vector - ref_params, model_terms)
-
-
-    def get_expected_chi_squared(self, noise_covariance, num_draws=1e3):
-        eigvals = np.linalg.eigvals(noise_covariance)[0].real
-        normal_samples = np.random.normal(0, 1, size=(num_draws, len(eigvals)))
-        dist_samples = 2 * np.sum(eigvals * normal_samples**2, axis=1)
-        return dist_samples 
     
 
+    def get_expected_chi_squared(self, noise_covariance, num_draws=1e3):
+
+        # TODO - check this is working for multimode fits + make more compact!! 
+
+        dist_samples = np.zeros((num_draws))
+        for i in range(len(self.spherical_modes)):
+            normal_samples = np.random.normal(0, 1, size=(num_draws, len(noise_covariance[0])))
+            eigvals = np.linalg.eigvals(noise_covariance)[i].real
+            dist_samples += 2 * np.sum(eigvals * normal_samples**2, axis=1)
+
+        return dist_samples
+ 
     def get_model_chi_squared(self, masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix, num_draws=1e3):
         samples, key = self._get_samples(mean_vector, covariance_matrix, num_draws)
         r_squareds = np.zeros(num_draws)
@@ -159,6 +146,42 @@ class BGP_select(Base_BGP_fit):
             r_squared = np.einsum("st, st -> ", np.conj(residual), residual).real
             r_squareds[j] = r_squared
         return r_squareds
+    
+
+    def get_fit_arrays(self, t0, model_times, masked_data_array, Mf_ref, chif_ref, modes, noise_covariance_lower_triangular):
+        full_ls_amplitudes, full_ref_params = self._get_ls_amplitudes_candidates(t0, Mf_ref, chif_ref, modes)
+        full_frequencies = jnp.array([self._get_frequency(mode, chif_ref, Mf_ref) for mode in modes])
+        full_frequency_derivatives = jnp.array([self._get_domega_dchif(mode, chif_ref, Mf_ref) for mode in modes])
+        full_mixing_coefficients = jnp.array([self._get_mixing(mode, sph_mode, chif_ref) for sph_mode in self.spherical_modes for mode in modes]).reshape(len(self.spherical_modes), len(modes))
+        full_mixing_derivatives = jnp.array([self._get_dmu_dchif(mode, sph_mode, chif_ref) for sph_mode in self.spherical_modes for mode in modes]).reshape(len(self.spherical_modes), len(modes))
+        full_exponential_terms = self._get_exponential_terms(model_times, full_frequencies)
+
+        model_terms = self.get_model_terms(
+            model_times,
+            full_ls_amplitudes,
+            full_exponential_terms,
+            full_mixing_coefficients,
+            full_mixing_derivatives,
+            full_frequencies,
+            full_frequency_derivatives,
+            Mf_ref,
+        )
+        constant_term = self.get_const_term(full_ls_amplitudes, full_exponential_terms, full_mixing_coefficients)
+
+        fisher_matrix = self.get_fisher_matrix(model_times, model_terms, noise_covariance_lower_triangular)
+        b_vector = self.get_b_vector(
+            masked_data_array,
+            constant_term,
+            model_times,
+            model_terms,
+            noise_covariance_lower_triangular,
+        )
+
+        covariance_matrix = get_inverse(fisher_matrix)
+        mean_vector = jnp.linalg.solve(fisher_matrix, b_vector) + full_ref_params
+
+        return full_ref_params, model_terms, constant_term, fisher_matrix, b_vector, covariance_matrix, mean_vector
+
 
     def get_fit_at_t0(self, t0):
         """
@@ -175,29 +198,6 @@ class BGP_select(Base_BGP_fit):
         chif_ref = self.chif_ref
         Mf_ref = self.Mf_ref
 
-        if len(self.modes) != 0:
-
-            frequencies, frequency_derivatives, mixing_coefficients, mixing_derivatives = (
-                self.frequencies,
-                self.frequency_derivatives,
-                self.mixing_coefficients,
-                self.mixing_derivatives,
-            )
-
-            exponential_terms = self._get_exponential_terms(model_times, frequencies)
-            ls_amplitudes, ref_params = self._get_ls_amplitudes(
-                t0, Mf_ref, chif_ref
-            )  
-
-        else:
-            ls_amplitudes = jnp.array([], dtype=jnp.complex128)
-            frequencies = jnp.array([], dtype=jnp.complex128)
-            frequency_derivatives = jnp.array([], dtype=jnp.complex128)
-            mixing_coefficients = jnp.empty((self.spherical_modes_length, 0), dtype=jnp.complex128)
-            mixing_derivatives = jnp.empty((self.spherical_modes_length, 0), dtype=jnp.complex128)
-            exponential_terms = jnp.empty((0, len(analysis_times)), dtype=jnp.complex128)
-            ref_params = jnp.array([], dtype=jnp.float64)
-
         noise_covariance_matrix = self.get_noise_covariance_matrix(analysis_times)
         noise_covariance_lower_triangular = cholesky(noise_covariance_matrix, lower=True)
 
@@ -209,26 +209,14 @@ class BGP_select(Base_BGP_fit):
 
         modes = self.modes.copy() 
 
-        # Slightly clunky but we need to temporarily make the parent class think the fit is to the candidate modes
-
-        self.modes_length = len(self.candidate_modes)
-
-        (candidate_frequencies, 
-        candidate_frequency_derivatives, 
-        candidate_mixing_coefficients, 
-        candidate_mixing_derivatives, 
-        candidate_exponential_terms, 
-        ) = self.get_candidate_params(chif_ref, Mf_ref, t0, model_times, self.candidate_modes)
-
-        self.modes_length = len(self.modes) 
-
-        # Remove prints at some point 
+        # TODO remove print statements at some stage 
 
         while True:
 
             log_significance = [] 
+            dot_products = []
 
-            candidate_modes_considered = self.determine_next_modes(modes, n_limit, self.n_max)
+            candidate_modes_considered = self.determine_next_modes(modes, self.candidate_modes, n_limit, self.n_max)
 
             if len(candidate_modes_considered) == 0:
                 print("Stopping: no more modes to add.")
@@ -241,44 +229,20 @@ class BGP_select(Base_BGP_fit):
             for candidate_mode in candidate_modes_considered:
 
                 try_modes = modes + [candidate_mode]
-                candidate_idx = self.candidate_modes.index(candidate_mode)
 
-                full_ls_amplitudes, full_ref_params = self._get_ls_amplitudes_candidates(t0, Mf_ref, chif_ref, try_modes)
-                full_frequencies = jnp.append(frequencies, candidate_frequencies[candidate_idx])
-                full_frequency_derivatives = jnp.append(frequency_derivatives, candidate_frequency_derivatives[candidate_idx])
-                full_mixing_coefficients = jnp.hstack((mixing_coefficients, candidate_mixing_coefficients[:, candidate_idx:candidate_idx+1]))
-                full_mixing_derivatives = jnp.hstack((mixing_derivatives, candidate_mixing_derivatives[:, candidate_idx:candidate_idx+1]))
-                full_exponential_terms = jnp.vstack((exponential_terms, candidate_exponential_terms[candidate_idx:candidate_idx+1, :]))
-
-                model_terms = self.get_model_terms(
-                    model_times,
-                    full_ls_amplitudes,
-                    full_exponential_terms,
-                    full_mixing_coefficients,
-                    full_mixing_derivatives,
-                    full_frequencies,
-                    full_frequency_derivatives,
-                    Mf_ref,
+                full_ref_params, model_terms, constant_term, fisher_matrix, b_vector, \
+                covariance_matrix, mean_vector = self.get_fit_arrays(
+                    t0, model_times, masked_data_array, Mf_ref, chif_ref, 
+                    try_modes, noise_covariance_lower_triangular
                 )
-                constant_term = self.get_const_term(full_ls_amplitudes, full_exponential_terms, full_mixing_coefficients)
-
-                fisher_matrix = self.get_fisher_matrix(model_times, model_terms, noise_covariance_lower_triangular)
-                b_vector = self.get_b_vector(
-                    masked_data_array,
-                    constant_term,
-                    model_times,
-                    model_terms,
-                    noise_covariance_lower_triangular,
-                )
-
-                mean_vector = jnp.linalg.solve(fisher_matrix, b_vector) + full_ref_params
-                log_significance.append(get_log_significance_mode(candidate_mode, 
+                dot_product, log_s = get_log_significance_mode(candidate_mode, 
                                                                     try_modes, 
                                                                     mean_vector, 
                                                                     fisher_matrix, 
                                                                     include_chif=self.include_chif, 
-                                                                    include_Mf=self.include_Mf))
-
+                                                                    include_Mf=self.include_Mf)
+                log_significance.append(log_s)
+                dot_products.append(dot_product)
 
             max_log_sig = max(log_significance)
 
@@ -289,48 +253,36 @@ class BGP_select(Base_BGP_fit):
                 self.params_length -= 2
                 break
 
-            best_idx = np.argmax(log_significance)
+            best_idx = np.argmax(dot_products)
             mode_to_add = candidate_modes_considered[best_idx]
-            candidate_modes_best_idx = self.candidate_modes.index(mode_to_add)
-            print(f"Adding mode {mode_to_add} with significance {np.exp(max_log_sig)}.")
             modes.append(mode_to_add)
+            print(f"Adding mode {mode_to_add} with significance {np.exp(max_log_sig)}.")
 
             if len(mode_to_add)==4:
                 n_limit[(mode_to_add[0], mode_to_add[1])] += 1
 
-
-            ls_amplitudes, ref_params = self._get_ls_amplitudes_candidates(t0, Mf_ref, chif_ref, modes)
-            frequencies = jnp.append(frequencies, candidate_frequencies[candidate_modes_best_idx])
-            frequency_derivatives = jnp.append(frequency_derivatives, candidate_frequency_derivatives[candidate_modes_best_idx])
-            mixing_coefficients = jnp.hstack((mixing_coefficients, candidate_mixing_coefficients[:, candidate_modes_best_idx:candidate_modes_best_idx+1]))
-            mixing_derivatives = jnp.hstack((mixing_derivatives, candidate_mixing_derivatives[:, candidate_modes_best_idx:candidate_modes_best_idx+1]))
-            exponential_terms = jnp.vstack((exponential_terms, candidate_exponential_terms[candidate_modes_best_idx:candidate_modes_best_idx+1, :]))
-
-        model_terms = self.get_model_terms(
-                    model_times,
-                    ls_amplitudes,
-                    exponential_terms,
-                    mixing_coefficients,
-                    mixing_derivatives,
-                    frequencies,
-                    frequency_derivatives,
-                    Mf_ref,
-                )
-        
-        constant_term = self.get_const_term(ls_amplitudes, exponential_terms, mixing_coefficients)
-        fisher_matrix = self.get_fisher_matrix(model_times, model_terms, noise_covariance_lower_triangular)
-        covariance_matrix = get_inverse(fisher_matrix)
-        b_vector = self.get_b_vector(
-            masked_data_array,
-            constant_term,
-            model_times,
-            model_terms,
-            noise_covariance_lower_triangular,
+        full_ref_params, model_terms, constant_term, fisher_matrix, b_vector, \
+        covariance_matrix, mean_vector = self.get_fit_arrays(
+            t0, model_times, masked_data_array, Mf_ref, chif_ref, 
+            modes, noise_covariance_lower_triangular
         )
-        mean_vector = jnp.linalg.solve(fisher_matrix, b_vector) + ref_params
-
         expected_chi_squared = self.get_expected_chi_squared(noise_covariance_matrix, num_draws=self.num_draws)
-        model_chi_squared = self.get_model_chi_squared(masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix, num_draws=self.num_draws)
-        p_values = np.array([np.sum(expected_chi_squared < chi_sq) / len(expected_chi_squared) for chi_sq in model_chi_squared])
 
-        return modes, p_values 
+        model_chi_squared = self.get_model_chi_squared(masked_data_array, constant_term, full_ref_params, model_terms, mean_vector, covariance_matrix, num_draws=self.num_draws)
+        p_values = np.array([np.sum(expected_chi_squared < chi_sq) / self.num_draws for chi_sq in model_chi_squared])
+
+        #model_chi_squared_mean, model_chi_squared_lower, model_chi_squared_upper = np.mean(model_chi_squared), np.percentile(model_chi_squared, 25), np.percentile(model_chi_squared, 75)
+        #p_value_mean = np.sum(expected_chi_squared < model_chi_squared_mean) / self.num_draws
+
+        sample_model = self.get_model_linear(constant_term, mean_vector, full_ref_params, model_terms)
+        residual = masked_data_array - sample_model
+        r_squared_mean = np.einsum("st, st -> ", np.conj(residual), residual).real
+        p_value_mean = np.sum(expected_chi_squared < r_squared_mean) / self.num_draws
+
+        self.r_squareds = model_chi_squared
+        self.r_squared_mean = r_squared_mean
+
+        self.p_values = p_values
+        self.p_value_mean = p_value_mean
+
+        self.full_modes = modes

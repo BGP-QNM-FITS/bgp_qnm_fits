@@ -12,7 +12,7 @@ from jax.scipy.linalg import cholesky
 jax.config.update("jax_enable_x64", True)
 
 
-class BGP_fit(Base_BGP_fit):
+class BGP_fit_lite(Base_BGP_fit):
     """
     A class for fitting QNM parameters to data using Bayesian inference.
     This class extends the Base_BGP_fit class and provides methods for fitting QNM parameters
@@ -23,10 +23,7 @@ class BGP_fit(Base_BGP_fit):
         self,
         *args,
         t0,
-        use_nonlinear_params=False,
-        decay_corrected=False,
         num_samples=10000,
-        quantiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99],
         **kwargs,
     ):
         """
@@ -47,9 +44,6 @@ class BGP_fit(Base_BGP_fit):
 
         self.key = jax.random.PRNGKey(int(time.time()))
         self.num_samples = num_samples
-        self.quantiles = quantiles
-        self.use_nonlinear_params = use_nonlinear_params
-        self.decay_corrected = decay_corrected
 
         # Decide whether to perform the fit once or loop over multiple t0 values.
         # In the latter case, the fits will be stored in a list.
@@ -347,25 +341,14 @@ class BGP_fit(Base_BGP_fit):
         analysis_times, masked_data_array = self._mask_data(t0)
         model_times = analysis_times - t0
 
-        chif_nonlinear, Mf_nonlinear = self.get_nonlinear_mf_chif(t0, self.T, self.spherical_modes, self.chif_ref, self.Mf_ref)
-        _, ref_params_nonlinear = self._get_ls_amplitudes(
-            t0, Mf_nonlinear, chif_nonlinear
-        )  
-
-        if self.use_nonlinear_params:
-            chif_ref, Mf_ref = chif_nonlinear, Mf_nonlinear
-            frequencies, frequency_derivatives, mixing_coefficients, mixing_derivatives = (
-                self._get_mixing_frequency_terms(chif_ref, Mf_ref)
-            )
-        else:
-            chif_ref = self.chif_ref
-            Mf_ref = self.Mf_ref
-            frequencies, frequency_derivatives, mixing_coefficients, mixing_derivatives = (
-                self.frequencies,
-                self.frequency_derivatives,
-                self.mixing_coefficients,
-                self.mixing_derivatives,
-            )
+        chif_ref = self.chif_ref
+        Mf_ref = self.Mf_ref
+        frequencies, frequency_derivatives, mixing_coefficients, mixing_derivatives = (
+            self.frequencies,
+            self.frequency_derivatives,
+            self.mixing_coefficients,
+            self.mixing_derivatives,
+        )
 
         exponential_terms = self._get_exponential_terms(model_times, frequencies)
         ls_amplitudes, ref_params = self._get_ls_amplitudes(
@@ -400,45 +383,6 @@ class BGP_fit(Base_BGP_fit):
         covariance_matrix = get_inverse(fisher_matrix)
         samples, key = self._get_samples(mean_vector, covariance_matrix)
 
-        if self.strain_parameters:
-            samples = self.strain_correct(samples)
-            ref_params = self.strain_correct(ref_params[None, :])[0, :]
-            ref_params_nonlinear = self.strain_correct(ref_params_nonlinear[None, :])[0, :]
-            #mean_vector = self.strain_correct(mean_vector[None, :])[0, :]
-            #ls_amplitudes_corrected = jnp.zeros_like(ls_amplitudes)
-            #for i, mode in enumerate(self.modes):
-            #    re_A = ref_params[2*i]
-            #    im_A = ref_params[2*i+1]
-            #    ls_amplitudes_corrected = ls_amplitudes_corrected.at[i].set(
-            #        re_A + 1j * im_A
-            #    )
-            #ls_amplitudes = ls_amplitudes_corrected
-            #constant_term = self.get_const_term(ls_amplitudes, exponential_terms, mixing_coefficients)
-            #model_terms = self.get_model_terms(
-            #                    model_times,
-            #                    ls_amplitudes,
-            #                    exponential_terms,
-            #                    mixing_coefficients,
-            #                    mixing_derivatives,
-            #                    frequencies,
-            #                    frequency_derivatives,
-            #                    Mf_ref,
-            #                    )
-            
-        (
-            mean_amplitude,
-            mean_phase,
-            sample_amplitudes,
-            sample_phases,
-            samples_weights,
-            neff,
-        ) = self.get_amplitude_phase(mean_vector, samples, t0)
-
-        # weighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles, samples_weights)
-        unweighted_quantiles_dict = self.get_amplitude_quantiles(sample_amplitudes, self.quantiles)
-        model_array_linear = self.get_model_linear(constant_term, mean_vector, ref_params, model_terms)
-        model_array_nonlinear = self.get_model_nonlinear(mean_vector, analysis_times, Mf_ref, chif_ref)
-
         expected_chi_squared = self.get_expected_chi_squared(noise_covariance_matrix)
 
         model_chi_squared = self.get_model_chi_squared(masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix)
@@ -466,23 +410,12 @@ class BGP_fit(Base_BGP_fit):
             "covariance": covariance_matrix,
             "b_vector": b_vector,
             "mean": mean_vector,
-            "mean_amplitude": mean_amplitude,
-            "mean_phase": mean_phase,
             "samples": samples,
-            "sample_amplitudes": sample_amplitudes,
-            "sample_phases": sample_phases,
-            "samples_weights": samples_weights,
-            "N_effective_samples": neff,
-            "unweighted_quantiles": unweighted_quantiles_dict,
-            # "weighted_quantiles": weighted_quantiles_dict,
-            "model_array_linear": model_array_linear,
-            "model_array_nonlinear": model_array_nonlinear,
             "analysis_times": analysis_times,
             "data_array_masked": masked_data_array,
             "constant_term": constant_term,
             "model_terms": model_terms,
             "ref_params": ref_params,
-            "ref_params_nonlinear": ref_params_nonlinear,
             "param_names": self.params,
             "p_values": p_values,
             "p_value_mean": p_value_mean,
