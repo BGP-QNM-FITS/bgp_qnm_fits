@@ -1,4 +1,4 @@
-import qnmfits
+import bgp_qnm_fits.qnmfits_funcs as qnmfits
 import jax
 import jax.numpy as jnp
 from jax.scipy.linalg import solve_triangular
@@ -207,23 +207,6 @@ class Base_BGP_fit:
         return qnmfits.qnm.omega_list([mode], chif, Mf)[0] 
     
 
-    #def _get_frequency(self, mode, chif, Mf):
-        """
-        Compute the frequency for a given QNM mode.
-        Args:
-            mode (tuple): QNM mode (ell, m, n, sign).
-            chif (float): Remnant spin.
-            Mf (float): Remnant mass.
-        Returns:
-            complex: Frequency of the QNM.
-        """
-        return sum(
-            [
-                qnmfits.qnm.omega(ell, m, n, sign, chif, Mf, s=-2)
-                for ell, m, n, sign in [mode[i : i + 4] for i in range(0, len(mode), 4)]
-            ]
-        )
-
     def _get_mixing(self, mode, sph_mode, chif):
         """
         Compute the mixing coefficient for a given QNM mode and spherical mode.
@@ -235,35 +218,6 @@ class Base_BGP_fit:
             complex: Mixing coefficient for the QNM mode.
         """
         return qnmfits.qnm.mu_list([sph_mode + mode], chif)[0] 
-    
-
-    #def _get_mixing(self, mode, sph_mode, chif):
-        """
-        Compute the mixing coefficient for a given QNM mode and spherical mode.
-        For higher order QNMs, this is a placeholder that returns 1 + 0j.
-        Args:
-            mode (tuple): QNM mode (ell, m, n, sign).
-            sph_mode (tuple): Spherical mode (ell, m).
-            chif (float): Remnant spin.
-        Returns:
-            complex: Mixing coefficient for the QNM mode.
-        """
-        ell, m = sph_mode
-        if len(mode) == 4:
-            lp, mp, nprime, sign = mode
-            return qnmfits.qnm.mu(ell, m, lp, mp, nprime, sign, chif)
-        elif len(mode) == 8:
-            lp, mp, nprime, sign, ell2, m2, nprime2, sign2 = mode
-            if mp + m2 == m:
-                return 1 + 0j
-            else:
-                return 0 + 0j
-        elif len(mode) == 12:
-            ell1, m1, n1, p1, ell2, m2, n2, p2, ell3, m3, n3, p3 = mode
-            if m1 + m2 + m3 == m:
-                return 1 + 0j
-            else:
-                return 0 + 0j
 
 
     def _get_ls_amplitudes(self, t0, Mf, chif, t0_method="closest"):

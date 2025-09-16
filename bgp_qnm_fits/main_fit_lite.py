@@ -1,5 +1,5 @@
 import numpy as np
-import qnmfits
+import bgp_qnm_fits.qnmfits_funcs as qnmfits
 import jax
 import jax.numpy as jnp
 import time

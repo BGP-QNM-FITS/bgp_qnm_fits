@@ -1,5 +1,5 @@
 import numpy as np
-import qnmfits
+import bgp_qnm_fits.qnmfits_funcs as qnmfits
 import jax.numpy as jnp
 from jax.scipy.linalg import eigh, cholesky, solve_triangular
 from scipy.interpolate import make_interp_spline as spline

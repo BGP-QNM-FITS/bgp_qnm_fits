@@ -1,5 +1,5 @@
 import numpy as np
-import qnmfits
+import bgp_qnm_fits.qnmfits_funcs as qnmfits
 import jax
 import jax.numpy as jnp
 import time
@@ -275,6 +275,7 @@ class BGP_select(Base_BGP_fit):
 
             if max_log_sig < self.log_threshold:
                 print("Stopping: no more significant modes")
+                print(f"Next mode is {candidate_modes_considered[np.argmax(log_significance)]} with log significance {max_log_sig}")
                 print("Final mode content", modes)
                 self.modes_length -= 1
                 self.params_length -= 2
