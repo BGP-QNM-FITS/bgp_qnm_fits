@@ -204,6 +204,19 @@ class Base_BGP_fit:
         Returns:
             complex: Frequency of the QNM.
         """
+        return qnmfits.qnm.omega_list([mode], chif, Mf)[0] 
+    
+
+    #def _get_frequency(self, mode, chif, Mf):
+        """
+        Compute the frequency for a given QNM mode.
+        Args:
+            mode (tuple): QNM mode (ell, m, n, sign).
+            chif (float): Remnant spin.
+            Mf (float): Remnant mass.
+        Returns:
+            complex: Frequency of the QNM.
+        """
         return sum(
             [
                 qnmfits.qnm.omega(ell, m, n, sign, chif, Mf, s=-2)
@@ -212,6 +225,19 @@ class Base_BGP_fit:
         )
 
     def _get_mixing(self, mode, sph_mode, chif):
+        """
+        Compute the mixing coefficient for a given QNM mode and spherical mode.
+        Args:
+            mode (tuple): QNM mode (ell, m, n, sign).
+            sph_mode (tuple): Spherical mode (ell, m).
+            chif (float): Remnant spin.
+        Returns:
+            complex: Mixing coefficient for the QNM mode.
+        """
+        return qnmfits.qnm.mu_list([sph_mode + mode], chif)[0] 
+    
+
+    #def _get_mixing(self, mode, sph_mode, chif):
         """
         Compute the mixing coefficient for a given QNM mode and spherical mode.
         For higher order QNMs, this is a placeholder that returns 1 + 0j.
@@ -238,6 +264,7 @@ class Base_BGP_fit:
                 return 1 + 0j
             else:
                 return 0 + 0j
+
 
     def _get_ls_amplitudes(self, t0, Mf, chif, t0_method="closest"):
         """

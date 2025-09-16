@@ -24,6 +24,7 @@ class BGP_select(Base_BGP_fit):
         t0,
         candidate_modes,
         log_threshold, 
+        candidate_type="sequential",
         n_max=6,
         num_draws=1e3,
         **kwargs,
@@ -48,6 +49,7 @@ class BGP_select(Base_BGP_fit):
         self.candidate_modes = candidate_modes
         self.n_max = n_max
         self.num_draws = int(num_draws)
+        self.candidate_type = candidate_type 
         self.get_fit_at_t0(t0)
 
     def _get_ls_amplitudes_candidates(self, t0, Mf, chif, modes, t0_method="closest"):
@@ -89,21 +91,41 @@ class BGP_select(Base_BGP_fit):
 
         return C_0, ref_params
 
-
-    def determine_next_modes(self, current_modes, candidate_modes, n_limit, n_max):
+    def determine_next_modes(self, current_modes, candidate_modes, n_limit_prograde, n_limit_retrograde, n_max, type="sequential"):
         possible_new_modes = []
-        for s in self.spherical_modes:
-            if n_limit[s] + 1 <= n_max:
-                if (s[0], s[1], n_limit[s] + 1, -1 if s[1] < 0 else 1) in candidate_modes:
-                    possible_new_modes.append((s[0], s[1], n_limit[s] + 1, -1 if s[1] < 0 else 1))
 
-        QQNM = (2,2,0,1,2,2,0,1)
+        QQNM1 = (2,2,0,1,2,2,0,1)
+        QQNM2 = (3,3,0,1,3,3,0,1)
         CQNM = (2,2,0,1,2,2,0,1,2,2,0,1) 
 
-        if QQNM not in current_modes and (QQNM in candidate_modes):
-            possible_new_modes.append(QQNM)
-        if CQNM not in current_modes and (CQNM in candidate_modes):
-            possible_new_modes.append(CQNM)
+        if type=="sequential":
+
+            for s in self.spherical_modes:
+                if n_limit_prograde[s] + 1 <= n_max:
+                    if (s[0], s[1], n_limit_prograde[s] + 1, 1) in candidate_modes:
+                        possible_new_modes.append((s[0], s[1], n_limit_prograde[s] + 1, 1))
+                if n_limit_retrograde[s] + 1 <= n_max:
+                    if (s[0], s[1], n_limit_retrograde[s] + 1, -1) in candidate_modes:
+                        possible_new_modes.append((s[0], s[1], n_limit_retrograde[s] + 1, -1))
+
+            if (2, 2, 0, 1) in current_modes:
+                if QQNM1 not in current_modes and (QQNM1 in candidate_modes):
+                    possible_new_modes.append(QQNM1)
+                if CQNM not in current_modes and (CQNM in candidate_modes):
+                    possible_new_modes.append(CQNM)
+            elif (3, 3, 0, 1) in current_modes and QQNM2 not in current_modes and (QQNM2 in candidate_modes):
+                possible_new_modes.append(QQNM2)
+
+        elif type=="all":
+            for candidate_mode in candidate_modes:
+                if candidate_mode not in current_modes:
+                        possible_new_modes.append(candidate_mode)
+
+        # CONSTANTS 
+
+        for candidate_mode in candidate_modes:
+            if len(candidate_mode) == 2 and candidate_mode not in current_modes:
+                possible_new_modes.append(candidate_mode)
 
         return possible_new_modes
     
@@ -203,11 +225,15 @@ class BGP_select(Base_BGP_fit):
 
         if len(self.modes) != 0:
             # TODO this is for a very specific trial case 
-            n_limit = {s: 0 for s in self.spherical_modes}
+            n_limit_prograde = {s: 0 for s in self.spherical_modes}
+            n_limit_retrograde = {s: 0 for s in self.spherical_modes}
         else:
-            n_limit = {s: -1 for s in self.spherical_modes}
+            n_limit_prograde = {s: -1 for s in self.spherical_modes}
+            n_limit_retrograde = {s: -1 for s in self.spherical_modes}
 
         modes = self.modes.copy() 
+
+        mode_dot_products = [] 
 
         # TODO remove print statements at some stage 
 
@@ -216,7 +242,7 @@ class BGP_select(Base_BGP_fit):
             log_significance = [] 
             dot_products = []
 
-            candidate_modes_considered = self.determine_next_modes(modes, self.candidate_modes, n_limit, self.n_max)
+            candidate_modes_considered = self.determine_next_modes(modes, self.candidate_modes, n_limit_prograde, n_limit_retrograde, self.n_max, type=self.candidate_type)
 
             if len(candidate_modes_considered) == 0:
                 print("Stopping: no more modes to add.")
@@ -245,6 +271,7 @@ class BGP_select(Base_BGP_fit):
                 dot_products.append(dot_product)
 
             max_log_sig = max(log_significance)
+            mode_dot_products.append(max(dot_products))
 
             if max_log_sig < self.log_threshold:
                 print("Stopping: no more significant modes")
@@ -258,8 +285,10 @@ class BGP_select(Base_BGP_fit):
             modes.append(mode_to_add)
             print(f"Adding mode {mode_to_add} with significance {np.exp(max_log_sig)}.")
 
-            if len(mode_to_add)==4:
-                n_limit[(mode_to_add[0], mode_to_add[1])] += 1
+            if len(mode_to_add)==4 and mode_to_add[3]==1:
+                n_limit_prograde[(mode_to_add[0], mode_to_add[1])] += 1
+            elif len(mode_to_add)==4 and mode_to_add[3]==-1:
+                n_limit_retrograde[(mode_to_add[0], mode_to_add[1])] += 1
 
         full_ref_params, model_terms, constant_term, fisher_matrix, b_vector, \
         covariance_matrix, mean_vector = self.get_fit_arrays(
@@ -286,3 +315,5 @@ class BGP_select(Base_BGP_fit):
         self.p_value_mean = p_value_mean
 
         self.full_modes = modes
+
+        self.dot_products = mode_dot_products
