@@ -17,6 +17,8 @@ from urllib.request import urlretrieve
 from scipy.integrate import dblquad as dbl_integrate
 from spherical import Wigner3j as w3j
 from bgp_qnm_fits.utils import mismatch
+import pickle
+from scipy.interpolate import interp1d
 
 class qnm:
     """
@@ -36,6 +38,26 @@ class qnm:
         # Dictionary to store interpolated qnm functions for quicker
         # evaluation
         self._interpolated_qnm_funcs = {}
+
+        #Load the Cmus.json file
+        data_dir = Path(__file__).parent
+        cmus_file = data_dir / 'Cmus.pkl'
+        with open(cmus_file, 'rb') as file:
+            Cmus = pickle.load(file)
+
+        Cmus_1 = Cmus["(6,6)"]
+        Cmus_2 = Cmus["(7,6)"]
+
+        spins = np.array([float(key) for key in Cmus_1.keys()])
+        cmu_1_values = np.array([complex(value) for value in Cmus_1.values()])
+        cmu_1_real_interp = interp1d(spins, cmu_1_values.real, kind="cubic", fill_value="extrapolate")
+        cmu_1_imag_interp = interp1d(spins, cmu_1_values.imag, kind="cubic", fill_value="extrapolate")
+        self._Cmus1_interp = lambda spin: cmu_1_real_interp(spin) + 1j * cmu_1_imag_interp(spin)
+
+        cmu_2_values = np.array([complex(value) for value in Cmus_2.values()])
+        cmu_2_real_interp = interp1d(spins, cmu_2_values.real, kind="cubic", fill_value="extrapolate")
+        cmu_2_imag_interp = interp1d(spins, cmu_2_values.imag, kind="cubic", fill_value="extrapolate")
+        self._Cmus2_interp = lambda spin: cmu_2_real_interp(spin) + 1j * cmu_2_imag_interp(spin)
 
         # The method used by the qnm package breaks down for certain modes that
         # approach the imaginary axis (perhaps most notably, the (2,2,8) mode).
@@ -401,9 +423,9 @@ class qnm:
             elif len(k) == 14:
                 ell, m, ell1, m1, n1, p1, ell2, m2, n2, p2, ell3, m3, n3, p3  = k
                 if (ell, m) == (6, 6) and (ell1, m1, n1, p1) == (2, 2, 0, 1) and (ell2, m2, n2, p2) == (2, 2, 0, 1) and (ell3, m3, n3, p3) == (2, 2, 0, 1):
-                    mus.append(151.40429141891235-3.4723255992986166j)
+                    mus.append(self._Cmus1_interp(chif))
                 elif (ell, m) == (7, 6) and (ell1, m1, n1, p1) == (2, 2, 0, 1) and (ell2, m2, n2, p2) == (2, 2, 0, 1) and (ell3, m3, n3, p3) == (2, 2, 0, 1):
-                    mus.append(39.27704821122107-6.69183861544011j)
+                    mus.append(self._Cmus2_interp(chif))
                 else:
                     mus.append(0.0 + 0.0j)
 
