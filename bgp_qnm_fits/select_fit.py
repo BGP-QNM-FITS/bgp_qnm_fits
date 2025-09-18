@@ -121,6 +121,25 @@ class BGP_select(Base_BGP_fit):
                 if candidate_mode not in current_modes:
                         possible_new_modes.append(candidate_mode)
 
+        elif type=="prograde_sequential":
+            for s in self.spherical_modes:
+                if n_limit_prograde[s] + 1 <= n_max:
+                    if (s[0], s[1], n_limit_prograde[s] + 1, 1) in candidate_modes:
+                        possible_new_modes.append((s[0], s[1], n_limit_prograde[s] + 1, 1))
+
+                for n in range(n_max + 1):
+                    qnm = (s[0], s[1], n + 1, -1)
+                    if qnm in candidate_modes and qnm not in current_modes:
+                        possible_new_modes.append(qnm)
+
+            if (2, 2, 0, 1) in current_modes:
+                if QQNM1 not in current_modes and (QQNM1 in candidate_modes):
+                    possible_new_modes.append(QQNM1)
+                if CQNM not in current_modes and (CQNM in candidate_modes):
+                    possible_new_modes.append(CQNM)
+            elif (3, 3, 0, 1) in current_modes and QQNM2 not in current_modes and (QQNM2 in candidate_modes):
+                possible_new_modes.append(QQNM2)
+
         # CONSTANTS 
 
         for candidate_mode in candidate_modes:

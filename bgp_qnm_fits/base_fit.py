@@ -97,7 +97,7 @@ class Base_BGP_fit:
             self.kernel(jnp.array(test_times), **self.kernel_param_dict[self.spherical_modes[0]])
         )
         self.is_GP_diagonal = jnp.count_nonzero(test_kernel_matrix - jnp.diag(jnp.diagonal(test_kernel_matrix))) == 0
-
+        
         #print("##################### Checks #####################")
         #print("Is kernel diagonal?", self.is_GP_diagonal)
         #print("Params in model:", self.params)
