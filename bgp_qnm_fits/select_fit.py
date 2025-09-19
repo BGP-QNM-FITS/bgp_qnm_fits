@@ -94,9 +94,18 @@ class BGP_select(Base_BGP_fit):
     def determine_next_modes(self, current_modes, candidate_modes, n_limit_prograde, n_limit_retrograde, n_max, type="sequential"):
         possible_new_modes = []
 
-        QQNM1 = (2,2,0,1,2,2,0,1)
-        QQNM2 = (3,3,0,1,3,3,0,1)
-        CQNM = (2,2,0,1,2,2,0,1,2,2,0,1) 
+        composite_modes = [
+            (2, 2, 0, 1, 2, 2, 0, 1),
+            (2, 2, 0, 1, 3, 3, 0, 1),
+            (3, 3, 0, 1, 3, 3, 0, 1),
+            (2, 2, 0, 1, 4, 4, 0, 1),
+            (2, 2, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1),
+            (2, -2, 0, -1, 2, -2, 0, -1),
+            (2, -2, 0, -1, 3, -3, 0, -1),
+            (3, -3, 0, -1, 3, -3, 0, -1),
+            (2, -2, 0, -1, 4, -4, 0, -1),
+            (2, -2, 0, -1, 2, -2, 0, -1, 2, -2, 0, -1),
+        ]
 
         if type=="sequential":
 
@@ -107,14 +116,6 @@ class BGP_select(Base_BGP_fit):
                 if n_limit_retrograde[s] + 1 <= n_max:
                     if (s[0], s[1], n_limit_retrograde[s] + 1, -1) in candidate_modes:
                         possible_new_modes.append((s[0], s[1], n_limit_retrograde[s] + 1, -1))
-
-            if (2, 2, 0, 1) in current_modes:
-                if QQNM1 not in current_modes and (QQNM1 in candidate_modes):
-                    possible_new_modes.append(QQNM1)
-                if CQNM not in current_modes and (CQNM in candidate_modes):
-                    possible_new_modes.append(CQNM)
-            elif (3, 3, 0, 1) in current_modes and QQNM2 not in current_modes and (QQNM2 in candidate_modes):
-                possible_new_modes.append(QQNM2)
 
         elif type=="all":
             for candidate_mode in candidate_modes:
@@ -132,13 +133,12 @@ class BGP_select(Base_BGP_fit):
                     if qnm in candidate_modes and qnm not in current_modes:
                         possible_new_modes.append(qnm)
 
-            if (2, 2, 0, 1) in current_modes:
-                if QQNM1 not in current_modes and (QQNM1 in candidate_modes):
-                    possible_new_modes.append(QQNM1)
-                if CQNM not in current_modes and (CQNM in candidate_modes):
-                    possible_new_modes.append(CQNM)
-            elif (3, 3, 0, 1) in current_modes and QQNM2 not in current_modes and (QQNM2 in candidate_modes):
-                possible_new_modes.append(QQNM2)
+        # QQNMs and CQNMs
+
+        for composite_mode in composite_modes:
+            constituent_modes = [composite_mode[i:i+4] for i in range(0, len(composite_mode), 4)]
+            if all(mode in current_modes for mode in constituent_modes) and composite_mode not in current_modes and composite_mode in candidate_modes:
+                possible_new_modes.append(composite_mode)
 
         # CONSTANTS 
 
