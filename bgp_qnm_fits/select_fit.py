@@ -125,11 +125,11 @@ class BGP_select(Base_BGP_fit):
         elif type=="prograde_sequential":
             for s in self.spherical_modes:
                 if n_limit_prograde[s] + 1 <= n_max:
-                    if (s[0], s[1], n_limit_prograde[s] + 1, 1) in candidate_modes:
-                        possible_new_modes.append((s[0], s[1], n_limit_prograde[s] + 1, 1))
+                    if (s[0], s[1], n_limit_prograde[s] + 1, 1 if s[1] > 0 else -1) in candidate_modes:
+                        possible_new_modes.append((s[0], s[1], n_limit_prograde[s] + 1, 1 if s[1] > 0 else -1))
 
                 for n in range(n_max + 1):
-                    qnm = (s[0], s[1], n + 1, -1)
+                    qnm = (s[0], s[1], n + 1, 1 if s[1] < 0 else -1)
                     if qnm in candidate_modes and qnm not in current_modes:
                         possible_new_modes.append(qnm)
 
@@ -305,9 +305,9 @@ class BGP_select(Base_BGP_fit):
             modes.append(mode_to_add)
             print(f"Adding mode {mode_to_add} with significance {np.exp(max_log_sig)}.")
 
-            if len(mode_to_add)==4 and mode_to_add[3]==1:
+            if len(mode_to_add)==4 and np.sign(mode_to_add[3]) == np.sign(mode_to_add[1]):
                 n_limit_prograde[(mode_to_add[0], mode_to_add[1])] += 1
-            elif len(mode_to_add)==4 and mode_to_add[3]==-1:
+            elif len(mode_to_add)==4 and np.sign(mode_to_add[3]) == np.sign(-mode_to_add[1]):
                 n_limit_retrograde[(mode_to_add[0], mode_to_add[1])] += 1
 
         full_ref_params, model_terms, constant_term, fisher_matrix, b_vector, \
