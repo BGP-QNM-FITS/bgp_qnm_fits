@@ -4,9 +4,9 @@ import bgp_qnm_fits as bgp
 from matplotlib import cm
 import bgp_qnm_fits.qnmfits_funcs as qnmfits
 
-sph_mode = (6,6)
-sph_mode2 = (7,6)
-mode = (2,2,0,1,2,2,0,1,2,2,0,1) 
+sph_mode = (6,-6)
+sph_mode2 = (7,-6)
+mode = (2,-2,0,-1,2,-2,0,-1,2,-2,0,-1) 
 chif = 0.7 
 
 chif_range = np.linspace(0, 1, 100)  # Range of chif values from 0 to 1
