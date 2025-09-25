@@ -290,12 +290,12 @@ class BGP_fit(Base_BGP_fit):
             chif_samples = samples[:, -2]
             corrected_samples = corrected_samples.at[:, -2].set(chif_samples)
         else:
-            chif_samples = jnp.full((self.num_samples,), self.chif_ref)
+            chif_samples = jnp.full((samples.shape[0],), self.chif_ref)
         if self.include_Mf:
             Mf_samples = samples[:, -1]
             corrected_samples = corrected_samples.at[:, -1].set(Mf_samples)
         else:
-            Mf_samples = jnp.full((self.num_samples,), self.Mf_ref)
+            Mf_samples = jnp.full((samples.shape[0],), self.Mf_ref)
 
         for i, mode in enumerate(self.modes):
             omegas = self.linearised_frequency(mode, chif_samples, Mf_samples)
