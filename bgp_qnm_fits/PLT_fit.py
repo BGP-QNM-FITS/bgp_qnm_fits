@@ -202,7 +202,7 @@ class PLT_BGP_fit(Base_BGP_fit):
             bounds += [(analysis_times[0] - 100, analysis_times[0] - 10)] * N
         if self.lam_PLT_val is None:
             param_names += ['lam_PLT']
-            bounds += [(1, 3)] * N
+            bounds += [(1, 14)] * N
 
         ndim = len(bounds)
         bounds_array = np.array(bounds)
