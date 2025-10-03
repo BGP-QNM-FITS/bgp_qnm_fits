@@ -92,20 +92,8 @@ class BGP_select(Base_BGP_fit):
         return C_0, ref_params
 
     def determine_next_modes(self, current_modes, candidate_modes, n_limit_prograde, n_limit_retrograde, n_max, type="sequential"):
-        possible_new_modes = []
 
-        composite_modes = [
-            (2, 2, 0, 1, 2, 2, 0, 1),
-            (2, 2, 0, 1, 3, 3, 0, 1),
-            (3, 3, 0, 1, 3, 3, 0, 1),
-            (2, 2, 0, 1, 4, 4, 0, 1),
-            (2, 2, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1),
-            (2, -2, 0, -1, 2, -2, 0, -1),
-            (2, -2, 0, -1, 3, -3, 0, -1),
-            (3, -3, 0, -1, 3, -3, 0, -1),
-            (2, -2, 0, -1, 4, -4, 0, -1),
-            (2, -2, 0, -1, 2, -2, 0, -1, 2, -2, 0, -1),
-        ]
+        possible_new_modes = []
 
         if type=="sequential":
 
@@ -135,10 +123,13 @@ class BGP_select(Base_BGP_fit):
 
         # QQNMs and CQNMs
 
-        for composite_mode in composite_modes:
-            constituent_modes = [composite_mode[i:i+4] for i in range(0, len(composite_mode), 4)]
-            if all(mode in current_modes for mode in constituent_modes) and composite_mode not in current_modes and composite_mode in candidate_modes:
-                possible_new_modes.append(composite_mode)
+        for candidate_mode in candidate_modes:
+            if len(candidate_mode) != 4: 
+                constituent_modes = [candidate_mode[i:i+4] for i in range(0, len(candidate_mode), 4)]
+                if not all(mode in candidate_modes for mode in constituent_modes) and candidate_mode not in current_modes: 
+                    possible_new_modes.append(candidate_mode)
+                elif all(mode in current_modes for mode in constituent_modes) and candidate_mode not in current_modes:
+                    possible_new_modes.append(candidate_mode)
 
         # CONSTANTS 
 
@@ -166,9 +157,6 @@ class BGP_select(Base_BGP_fit):
     
 
     def get_expected_chi_squared(self, noise_covariance, num_draws=1e3):
-
-        # TODO - check this is working for multimode fits + make more compact!! 
-
         dist_samples = np.zeros((num_draws))
         for i in range(len(self.spherical_modes)):
             normal_samples = np.random.normal(0, 1, size=(num_draws, len(noise_covariance[0])))
@@ -254,7 +242,11 @@ class BGP_select(Base_BGP_fit):
 
         mode_dot_products = [] 
 
-        # TODO remove print statements at some stage 
+        for candidate_mode in self.candidate_modes:
+            if len(candidate_mode) != 4: 
+                constituent_modes = [candidate_mode[i:i+4] for i in range(0, len(candidate_mode), 4)]
+                if not all(mode in self.candidate_modes for mode in constituent_modes): 
+                    print(f"Warning: candidate mode {candidate_mode} has constituents not in candidate modes list. Nonlinear mode will be included as a candidate at all times.")
 
         while True:
 

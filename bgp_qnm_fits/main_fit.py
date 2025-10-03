@@ -265,10 +265,13 @@ class BGP_fit(Base_BGP_fit):
     
 
     def get_expected_chi_squared(self, noise_covariance):
-        eigvals = np.linalg.eigvals(noise_covariance)[0].real
-        normal_samples = np.random.normal(0, 1, size=(self.num_samples, len(eigvals)))
-        dist_samples = 2 * np.sum(eigvals * normal_samples**2, axis=1)
-        return dist_samples 
+        dist_samples = np.zeros((self.num_samples))
+        for i in range(len(self.spherical_modes)):
+            normal_samples = np.random.normal(0, 1, size=(self.num_samples, len(noise_covariance[0])))
+            eigvals = np.linalg.eigvals(noise_covariance)[i].real
+            dist_samples += 2 * np.sum(eigvals * normal_samples**2, axis=1)
+
+        return dist_samples
     
 
     def get_model_chi_squared(self, masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix):

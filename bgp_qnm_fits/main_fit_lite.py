@@ -383,6 +383,8 @@ class BGP_fit_lite(Base_BGP_fit):
         covariance_matrix = get_inverse(fisher_matrix)
         samples, key = self._get_samples(mean_vector, covariance_matrix)
 
+        breakpoint() 
+
         expected_chi_squared = self.get_expected_chi_squared(noise_covariance_matrix)
 
         model_chi_squared = self.get_model_chi_squared(masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix)
