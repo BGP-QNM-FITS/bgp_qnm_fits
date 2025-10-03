@@ -1,11 +1,21 @@
 import pickle
 import sys
+import CCE as CCE
+import numpy as np
+import matplotlib.pyplot as plt 
 from pathlib import Path
+from bgp_qnm_fits import (
+    get_residuals,
+    get_params,
+    train_hyper_params,
+    kernel_WN,
+    kernel_GP,
+    kernel_GPC,
+    get_tuned_params,
+)
 
 notebook_dir = Path().resolve()
 sys.path.append(str(notebook_dir.parent))
-
-from bgp_qnm_fits import *
 
 SIMNUMS = [
     "0001",
@@ -66,26 +76,32 @@ SIM_TRAINING_MODE_RULES = {
     "0013": "ALL",
 }
 
-SMOOTHNESS = 16
-EPSILON = 1 / 10
+SMOOTHNESS = 1e-3
+TIME_SHIFT = 0 
 
 # These determine the parameter and training range but do not have to match `analysis times' used later.
 
-TRAINING_START_TIME = -10
-TRAINING_END_TIME = 100
+RESIDUAL_BIG_START = -10
+RESIDUAL_BIG_END = 310
 TIME_STEP = 0.1
+
+TRAINING_START_TIME_WN = 0
+TRAINING_RANGE_WN = 200
+
+TRAINING_START_TIME_GP = 20 
+TRAINING_RANGE_GP = 60 
 
 # Define training bounds
 
-SIGMA_MAX_LOWER, SIGMA_MAX_UPPER = 0.1, 5
+SIGMA_MAX_LOWER, SIGMA_MAX_UPPER = 0.01, 50
 T_S_LOWER, T_S_UPPER = -20, 30
 LENGTH_SCALE_LOWER, LENGTH_SCALE_UPPER = 0.1, 5
-PERIOD_LOWER, PERIOD_UPPER = 0.1, 5
+PERIOD_LOWER, PERIOD_UPPER = 0.1, 10
 
-SMOOTHNESS_LOWER, SMOOTHNESS_UPPER = 0, 30
-LENGTH_SCALE_2_LOWER, LENGTH_SCALE_2_UPPER = 0.1, 5
-PERIOD_2_LOWER, PERIOD_2_UPPER = 0.1, 5
-A_LOWER, A_UPPER = 0, 0.9
+# SMOOTHNESS_LOWER, SMOOTHNESS_UPPER = 1e-4, 1e-2
+LENGTH_SCALE_2_LOWER, LENGTH_SCALE_2_UPPER = 0.1, 10
+PERIOD_2_LOWER, PERIOD_2_UPPER = 0.1, 10
+A_LOWER, A_UPPER = 0, 1
 
 BOUNDS_WN = [
     (SIGMA_MAX_LOWER, SIGMA_MAX_UPPER),
@@ -93,16 +109,11 @@ BOUNDS_WN = [
 
 BOUNDS_GP = [
     (SIGMA_MAX_LOWER, SIGMA_MAX_UPPER),
-    (T_S_LOWER, T_S_UPPER),
-    (LENGTH_SCALE_LOWER, LENGTH_SCALE_UPPER),
     (PERIOD_LOWER, PERIOD_UPPER),
 ]
 
 BOUNDS_GPC = [
     (SIGMA_MAX_LOWER, SIGMA_MAX_UPPER),
-    (T_S_LOWER, T_S_UPPER),
-    (SMOOTHNESS_LOWER, SMOOTHNESS_UPPER),
-    (LENGTH_SCALE_LOWER, LENGTH_SCALE_UPPER),
     (PERIOD_LOWER, PERIOD_UPPER),
     (LENGTH_SCALE_2_LOWER, LENGTH_SCALE_2_UPPER),
     (PERIOD_2_LOWER, PERIOD_2_UPPER),
@@ -111,28 +122,9 @@ BOUNDS_GPC = [
 
 # Set initial params
 
-# INITIAL_PARAMS_WN = [1.]
-# INITIAL_PARAMS_GP = [1.0, 0.0, 1.0, 1.0]
-# INITIAL_PARAMS_GPC = [0.5715534011443748, 0.0032311845355438894, SMOOTHNESS, 1.7176362780942858, 0.31558556618927797, 1.7176362780942858, 0.31558556618927797, 0.5]
-
-INITIAL_PARAMS_WN = [0.2427084073890334]
-INITIAL_PARAMS_GP = [
-    0.3980389941570934,
-    8.809357469573628,
-    0.9402560980229044,
-    0.2534488252986766,
-]
-# INITIAL_PARAMS_GPC = [0.5678699426741673, 3.3680141572797027, 7.841502124072786, 1.241209026430354, 0.9894982312667636, 0.1064862157208278, 0.139811581920352, 0.5917377132835934]
-INITIAL_PARAMS_GPC = [
-    0.56698331,
-    3.07506273,
-    10.05455381,
-    1.26665191,
-    0.88166884,
-    0.1212859,
-    1.13996704,
-    0.47001289,
-]
+INITIAL_PARAMS_WN = [0.291450707195285]
+INITIAL_PARAMS_GP = [5.51806949954791, 1.608138148779154]
+INITIAL_PARAMS_GPC = [5.51806949954791, 1.608138148779154, 1, 1.608138148779154, 0.5]
 
 # Define rules for updating params
 
@@ -142,71 +134,82 @@ HYPERPARAM_RULE_DICT_WN = {
 
 HYPERPARAM_RULE_DICT_GP = {
     "sigma_max": "multiply",
-    "t_s": "sum",
-    "length_scale": "multiply",
     "period": "multiply",
 }
 
 HYPERPARAM_RULE_DICT_GPC = {
     "sigma_max": "multiply",
-    "t_s": "sum",
-    "sharpness": "replace",
-    "length_scale": "multiply",
     "period": "multiply",
     "length_scale_2": "multiply",
     "period_2": "multiply",
     "a": "replace",
 }
 
-
-def get_parameters():
-    R_dict = {}
+def get_parameters(data_type="strain", R_lm_id_big=None):
+    R_dict_WN = {}
+    R_dict_GP = {} 
+    R_dict_big = {}
     param_dict = {}
 
-    for i, sim_id in enumerate(SIMNUMS):
+    times = np.arange(
+        RESIDUAL_BIG_START, RESIDUAL_BIG_END + RESIDUAL_BIG_START, TIME_STEP
+    )
+
+    mask_WN = (times >= TRAINING_START_TIME_WN) & (times < TRAINING_START_TIME_WN + TRAINING_RANGE_WN)
+    mask_GP = (times >= TRAINING_START_TIME_GP) & (times < TRAINING_START_TIME_GP + TRAINING_RANGE_GP) 
+
+    for sim_id in SIMNUMS:
         print(sim_id)
 
-        sim_main = CCE.SXS_CCE(sim_id, lev="Lev5", radius="R2")
-        sim_lower = CCE.SXS_CCE(
-            sim_id, lev="Lev4", radius="R2"
-        )  # This has the smallest residual relative to sim_main
+        sim_main = CCE.SXS_CCE(sim_id, type=data_type, lev="Lev5", radius="R2")
+        sim_lower = CCE.SXS_CCE(sim_id, type=data_type, lev="Lev4", radius="R2")  # This has the smallest residual relative to sim_main
 
-        R_lm = get_residuals(
-            sim_main, sim_lower, TRAINING_START_TIME, TRAINING_END_TIME, dt=TIME_STEP
-        )
+        if R_lm_id_big is None: 
+            R_lm_big = get_residuals(
+                sim_main,
+                sim_lower,
+                RESIDUAL_BIG_START,
+                RESIDUAL_BIG_END,
+                dt=TIME_STEP,
+            )
+        else:
+            R_lm_big = R_lm_id_big[sim_id]
 
         params_lm = get_params(
-            R_lm,
+            R_lm_big,
+            np.arange(RESIDUAL_BIG_START, RESIDUAL_BIG_START + RESIDUAL_BIG_END, TIME_STEP),
             sim_main.Mf,
             sim_main.chif_mag,
-            RINGDOWN_START_TIMES[i],
             SMOOTHNESS,
-            EPSILON,
+            TIME_SHIFT,
+            data_type=data_type,
         )
 
-        R_dict[sim_id] = R_lm
-        param_dict[sim_id] = params_lm
+        R_dict_WN[sim_id] = {key: value[mask_WN] for key, value in R_lm_big.items()}
+        R_dict_GP[sim_id] = {key: value[mask_GP] for key, value in R_lm_big.items()}
+        R_dict_big[sim_id] = R_lm_big
+        param_dict[sim_id] = params_lm 
 
-    with open("R_dict.pkl", "wb") as f:
-        pickle.dump(R_dict, f)
+    with open(f"R_dict_{data_type}_big.pkl", "wb") as f:
+        pickle.dump(R_dict_big, f)
 
-    with open("param_dict.pkl", "wb") as f:
+    with open(f"param_dict_{data_type}.pkl", "wb") as f:
         pickle.dump(param_dict, f)
 
-    return R_dict, param_dict
+    return R_dict_WN, R_dict_GP, param_dict
 
 
 def get_hyperparams_WN(R_dict, param_dict):
     hyperparam_list, le, tuned_params = train_hyper_params(
-        TRAINING_START_TIME,
-        TRAINING_END_TIME,
+        TRAINING_START_TIME_WN,
+        TRAINING_RANGE_WN,
         TIME_STEP,
         INITIAL_PARAMS_WN,
         BOUNDS_WN,
         param_dict,
         R_dict,
         HYPERPARAM_RULE_DICT_WN,
-        kernel_s,
+        kernel_WN,
         TRAINING_SPH_MODES,
         SIM_TRAINING_MODE_RULES,
     )
@@ -216,15 +219,15 @@ def get_hyperparams_WN(R_dict, param_dict):
 
 def get_hyperparams_GP(R_dict, param_dict):
     hyperparam_list, le, tuned_params = train_hyper_params(
-        TRAINING_START_TIME,
-        TRAINING_END_TIME,
+        TRAINING_START_TIME_GP,
+        TRAINING_RANGE_GP,
         TIME_STEP,
         INITIAL_PARAMS_GP,
         BOUNDS_GP,
         param_dict,
         R_dict,
         HYPERPARAM_RULE_DICT_GP,
-        kernel_main,
+        kernel_GP,
         TRAINING_SPH_MODES,
         SIM_TRAINING_MODE_RULES,
     )
@@ -234,43 +237,54 @@ def get_hyperparams_GP(R_dict, param_dict):
 
 def get_hyperparams_GPC(R_dict, param_dict):
     hyperparam_list, le, tuned_params = train_hyper_params(
-        TRAINING_START_TIME,
-        TRAINING_END_TIME,
+        TRAINING_START_TIME_GP,
+        TRAINING_RANGE_GP,
         TIME_STEP,
         INITIAL_PARAMS_GPC,
         BOUNDS_GPC,
         param_dict,
         R_dict,
         HYPERPARAM_RULE_DICT_GPC,
-        kernel_c,
+        kernel_GPC,
         TRAINING_SPH_MODES,
         SIM_TRAINING_MODE_RULES,
     )
 
     return hyperparam_list, le, tuned_params
 
-
 if __name__ == "__main__":
-    # R_dict, param_dict = get_parameters()
-    # print("Getting hyperparameters...")
-    with open("param_dict.pkl", "rb") as f:
-        param_dict = pickle.load(f)
-    with open("R_dict.pkl", "rb") as f:
-        R_dict = pickle.load(f)
-    # hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict, param_dict)
-    # print("Hyperparameters for WN:", hyperparam_list_WN)
-    # hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict, param_dict)
-    # print("Hyperparameters for GP:", hyperparam_list_GP)
-    hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(
-        R_dict, param_dict
-    )
-    print("Hyperparameters for GPC:", hyperparam_list_GPC)
 
-    # with open("tuned_params_WN.pkl", "wb") as f:
-    #    pickle.dump(tuned_params_WN, f)
+    #for data_type in ["strain", "news", "psi4"]:
+    for data_type in ["news"]:
 
-    # with open("tuned_params_GP.pkl", "wb") as f:
-    #    pickle.dump(tuned_params_GP, f)
+        print(f"Training on {data_type}...")
 
-    # with open("tuned_params_GPC.pkl", "wb") as f:
-    #    pickle.dump(tuned_params_GPC, f)
+        with open(f"R_dict_{data_type}_big.pkl", "rb") as f:
+            R_lm_id_big = pickle.load(f)
+
+        R_dict_WN, R_dict_GP, param_dict = get_parameters(data_type=data_type, R_lm_id_big=R_lm_id_big)
+
+        hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict_WN, param_dict)
+        hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict_GP, param_dict)
+        hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict_GP, param_dict)
+        
+        with open(f"tuned_params_WN_{data_type}.pkl", "wb") as f:
+            pickle.dump(tuned_params_WN, f)
+        with open(f"tuned_params_GP_{data_type}.pkl", "wb") as f:
+            pickle.dump(tuned_params_GP, f)
+        with open(f"tuned_params_GPC_{data_type}.pkl", "wb") as f:
+            pickle.dump(tuned_params_GPC, f)
+
+
+# Strain: 
+# Optimal parameters: {'sigma_max': 0.20294461292163857} Log evidence: -3765876.728482591
+# Optimal parameters: {'sigma_max': 5.517601498993699, 'period': 1.608100776477014} Log evidence: -1740056.1988961035
+
+# News:
+# Optimal parameters: {'sigma_max': 0.20202315621798156} Log evidence: -4313245.295242246
+# Optimal parameters: {'sigma_max': 6.916479343926145, 'period': 1.6788343847045542} Log evidence: -2169834.025735345
+# Optimal parameters: {'sigma_max': 8.28904248745442, 'period': 1.959288624090839, 'length_scale_2': 0.4204419582784812, 'period_2': 1.0019473516595827, 'a': 0.11533919911875894} 
+
+# Psi4:
+# Optimal parameters: {'sigma_max': 0.19031816565801468} Log evidence: -4965094.051965869
+# Optimal parameters: {'sigma_max': 6.4913508308296635, 'period': 1.7270960691077046} Log evidence: -2503035.56179217

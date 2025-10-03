@@ -10,13 +10,14 @@ authors = [
 ]
 description = "Bayesian Gaussian Process fitting of quasinormal modes to CCE ringdown waveforms"
 readme = "README.md"
-license = "MIT" 
+license = "MIT"
 requires-python = ">=3.8"
 dependencies = [
     "numpy",
     "scipy",
     "matplotlib",
     "jax",
+    "qnmfits"
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -26,5 +27,21 @@ classifiers = [
 [project.urls]
 "Homepage" = "https://github.com/richardvnd/bgp_qnm_fits"
 
-[tool.setuptools.package-data]
-"bgp_qnm_fits" = ["data/*"]
+[tool.black]
+line-length = 120
+target-version = ['py38']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
