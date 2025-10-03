@@ -70,6 +70,8 @@ def get_params(
     time_shift, 
     data_type, 
     spherical_modes=None,
+    max_mask = 0, 
+    min_mask = 250,
 ):
     """
     This function computes the initial parameters for the Gaussian Process kernel based on the residuals.
@@ -90,8 +92,8 @@ def get_params(
 
     # Define period over which to average late-time residual 
 
-    max_mask = (residual_big_times > 0) 
-    min_mask = (residual_big_times > 250)
+    max_mask = (residual_big_times > max_mask) 
+    min_mask = (residual_big_times > min_mask)
 
     #if data_type == "strain":
     #    regularization_factor = 1e2

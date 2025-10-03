@@ -516,7 +516,7 @@ class Base_BGP_fit:
         Returns:
             jnp.ndarray: A 2D JAX array representing the Fisher matrix, where each element corresponds to a pair of parameters in `params`.
 
-        """
+        """ 
 
         L_model_terms = solve_triangular(
             noise_covariance_lower_triangular, model_terms, lower=True

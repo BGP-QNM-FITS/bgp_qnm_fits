@@ -1,6 +1,7 @@
 #import jax
 from .main_fit import BGP_fit
 from .select_fit import BGP_select
+from .PLT_fit import PLT_BGP_fit
 from .main_fit_lite import BGP_fit_lite
 from .gp_kernels import (
     kernel_test,
@@ -34,6 +35,7 @@ from .data import get_tuned_param_dict, get_residual_data, get_param_dict, SXS_C
 __all__ = [
     "BGP_fit",
     "BGP_select",
+    "PLT_BGP_fit",
     "BGP_fit_lite", 
     "kernel_test",
     "kernel_WN",

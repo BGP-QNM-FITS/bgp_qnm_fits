@@ -53,7 +53,7 @@ def SXS_CCE(ID, type="strain", lev="Lev5", radius="R2", zero_time=(2,2)):
 
     if ID == "0305":
 
-        print("Note that 0305 only has one level and radius. These arguments will be ignored.")
+        print("Note that 0305 only has one level, radius, and data type (strain). These arguments will be ignored.")
 
         with open(
             f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}.pickle",
