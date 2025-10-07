@@ -380,10 +380,15 @@ class BGP_fit_lite(Base_BGP_fit):
 
         # TODO use cholesky solve? 
         mean_vector = jnp.linalg.solve(fisher_matrix, b_vector) + ref_params
-        covariance_matrix = get_inverse(fisher_matrix)
-        samples, key = self._get_samples(mean_vector, covariance_matrix)
 
-        breakpoint() 
+
+        covariance_matrix = get_inverse(fisher_matrix)
+        epsilon = 1e-10
+        while jnp.any(jnp.linalg.eigvalsh(covariance_matrix) < 0):
+            covariance_matrix = get_inverse(fisher_matrix, epsilon=epsilon)
+            epsilon *= 10
+
+        samples, key = self._get_samples(mean_vector, covariance_matrix)
 
         expected_chi_squared = self.get_expected_chi_squared(noise_covariance_matrix)
 

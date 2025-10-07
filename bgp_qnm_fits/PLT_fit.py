@@ -28,6 +28,9 @@ class PLT_BGP_fit(Base_BGP_fit):
         A_PLT_val = None, # these should be lists of length equal to number of PLT modes
         t_PLT_val = None,
         lam_PLT_val = None,
+        A_PLT_prior = (-0.01, 0.01), # these should be tuples of (min, max) for uniform prior (we assume the same prior on all modes) 
+        t_PLT_prior = (-50, 40),
+        lam_PLT_prior = (1, 14),
         nsteps=1000,
         nwalkers=20,
         use_nonlinear_params=False,
@@ -55,6 +58,9 @@ class PLT_BGP_fit(Base_BGP_fit):
         self.A_PLT_val = A_PLT_val
         self.t_PLT_val = t_PLT_val
         self.lam_PLT_val = lam_PLT_val
+        self.A_PLT_prior = A_PLT_prior
+        self.t_PLT_prior = t_PLT_prior
+        self.lam_PLT_prior = lam_PLT_prior
 
         # Decide whether to perform the fit once or loop over multiple t0 values.
         # In the latter case, the fits will be stored in a list.
@@ -78,26 +84,26 @@ class PLT_BGP_fit(Base_BGP_fit):
     
     def A_prior(self, A):
         # Flat prior: 0 inside bounds, -inf outside
-        if np.all((-0.01 < A) & (A < 0.01)):
+        if np.all((self.A_PLT_prior[0] < A) & (A < self.A_PLT_prior[1])):
             return 0.0
         else:
             return -np.inf
 
     def T_prior(self, analysis_times, t):
         # Flat prior: 0 inside bounds, -inf outside
-        if np.all((analysis_times[0] - 100 < t) & (t < analysis_times[0] - 10)):
+        if np.all((self.t_PLT_prior[0] < t) & (t < self.t_PLT_prior[1])):
             return 0.0
         else:
             return -np.inf
 
     def lam_prior(self, lam):
         # Flat prior: 0 inside bounds, -inf outside
-        if np.all((1 < lam) & (lam < 5)):
+        if np.all((self.lam_PLT_prior[0] < lam) & (lam < self.lam_PLT_prior[1])):
             return 0.0
         else:
             return -np.inf
     
-    def _get_PLT_term(self, PLT_mode_indices, analysis_times, A_PLT_real, A_PLT_imag, t_PLT, lam_PLT):
+    def _get_PLT_term(self, t0, PLT_mode_indices, analysis_times, A_PLT_real, A_PLT_imag, t_PLT, lam_PLT):
         """
 
         Computes the PLT term for a given set of QNMs.
@@ -134,15 +140,15 @@ class PLT_BGP_fit(Base_BGP_fit):
             jnp.ndarray: A 1D JAX array representing the b vector, where each element corresponds to a parameter in `params`. 
         """
 
-        b_vector = jnp.einsum("st, stp -> p", jnp.conj(data_array_new), Kinv_model_array)
-        b_vector_hc = jnp.einsum("stp, st -> p", jnp.conj(Kinv_model_array), data_array_new)
+        b_vector = jnp.real(jnp.einsum("st, stp -> p", jnp.conj(data_array_new), Kinv_model_array))
+        b_vector_hc = jnp.real(jnp.einsum("stp, st -> p", jnp.conj(Kinv_model_array), data_array_new)) 
 
         b_val = jnp.einsum("pq, p, q ->", inv_fisher_matrix, b_vector, b_vector_hc)
 
         if self.is_GP_diagonal:
-            return jnp.real(b_val) * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
+            raise ValueError("Diagonal GP covariance is not supported in this implementation.")
         else:
-            return jnp.real(b_val) 
+            return jnp.real(b_val)
         
 
     def _get_residual_PLT(
@@ -164,10 +170,11 @@ class PLT_BGP_fit(Base_BGP_fit):
             return jnp.real(residual_val)
         
     
-    def _get_PLT_log_likelihood(self, PLT_mode_indices, analysis_times, masked_data_array, Kinv_model_array, constant_term, inv_fisher_matrix, noise_covariance_lower_triangular, A_PLT_real, A_PLT_imag, t_PLT, lam_PLT): 
+    def _get_PLT_log_likelihood(self, t0, PLT_mode_indices, analysis_times, masked_data_array, Kinv_model_array, constant_term, inv_fisher_matrix, noise_covariance_lower_triangular, A_PLT_real, A_PLT_imag, t_PLT, lam_PLT): 
 
-        PLT_term = self._get_PLT_term(PLT_mode_indices, analysis_times, A_PLT_real, A_PLT_imag, t_PLT, lam_PLT)
+        PLT_term = self._get_PLT_term(t0, PLT_mode_indices, analysis_times, A_PLT_real, A_PLT_imag, t_PLT, lam_PLT)
         data_array_new = masked_data_array - constant_term - PLT_term 
+        #data_array_new = masked_data_array - PLT_term 
 
         ll = self.A_prior(A_PLT_real) + \
              self.A_prior(A_PLT_imag) + \
@@ -187,7 +194,7 @@ class PLT_BGP_fit(Base_BGP_fit):
             
         return ll 
     
-    def PLT_search(self, PLT_mode_indices, analysis_times, masked_data_array, Kinv_model_array, constant_term, inv_fisher_matrix, noise_covariance_lower_triangular): 
+    def PLT_search(self, t0, PLT_mode_indices, analysis_times, masked_data_array, Kinv_model_array, constant_term, inv_fisher_matrix, noise_covariance_lower_triangular): 
 
         N = len(PLT_mode_indices)
         param_names = []
@@ -196,13 +203,13 @@ class PLT_BGP_fit(Base_BGP_fit):
         # Build parameter list and bounds
         if self.A_PLT_val is None:
             param_names += ['A_PLT_real', 'A_PLT_imag']
-            bounds += [(-0.01, 0.01)] * N + [(-0.01, 0.01)] * N
+            bounds += [self.A_PLT_prior] * N + [self.A_PLT_prior] * N
         if self.t_PLT_val is None:
             param_names += ['t_PLT']
-            bounds += [(analysis_times[0] - 100, analysis_times[0] - 10)] * N
+            bounds += [self.t_PLT_prior] * N
         if self.lam_PLT_val is None:
             param_names += ['lam_PLT']
-            bounds += [(1, 14)] * N
+            bounds += [self.lam_PLT_prior] * N
 
         ndim = len(bounds)
         bounds_array = np.array(bounds)
@@ -240,6 +247,7 @@ class PLT_BGP_fit(Base_BGP_fit):
                 lam_PLT = params[current_index:current_index + N]
 
             result = self._get_PLT_log_likelihood(
+                t0, 
                 PLT_mode_indices,
                 analysis_times,
                 masked_data_array, 
@@ -332,6 +340,7 @@ class PLT_BGP_fit(Base_BGP_fit):
 
         # Perform PLT search
         sampler = self.PLT_search(
+            t0, 
             PLT_mode_indices,
             analysis_times,
             masked_data_array, 

@@ -64,6 +64,10 @@ class qnm:
             real_interp(spin) + 1j * imag_interp(spin)
             )
 
+        Qmus_file = data_dir / 'Qmus_0010_C.pkl'
+        with open(Qmus_file, 'rb') as file:
+            self.Qmus_C = pickle.load(file)
+
         # The method used by the qnm package breaks down for certain modes that
         # approach the imaginary axis (perhaps most notably, the (2,2,8) mode).
         # We load data for these modes separately, computed by Cook &
@@ -424,7 +428,13 @@ class qnm:
                 ell, m, ellp, mp, nprime, sign = k
                 mus.append(self.mu(ell, m, ellp, mp, nprime, sign, chif, s))
             elif len(k) == 10:
-                mus.append(Qmu_D([k], chif, 8)[0]) 
+                kwargs = {"s1": -1, "s2": -1}
+                #mus.append(Qmu_D([k], chif, 8)[0]) 
+                mus.append(Qmu_B([k], chif, 8, **kwargs)[0])
+                #if k in self.Qmus_C.keys():
+                #    mus.append(self.Qmus_C[k])
+                #else:
+                #    mus.append(0.0 + 0.0j)
             elif len(k) == 14:
                 if k in self._Cmus_interp.keys():
                     mus.append(self._Cmus_interp[k](chif))
@@ -572,6 +582,44 @@ def triple_kappa_numerical(l4, m4, l1, l2, l3, m1, m2, m3, s1, s2, s3, l_max=8):
     imag_part = dbl_integrate(integrand_imag, 0, 2*np.pi, 0, np.pi)[0]
     
     return real_part + 1j * imag_part
+
+
+def Qmu_B(indices, chif, l_max, **kwargs):
+    """
+    A function to calculate the B prediction for the QQNM mode mixing.
+
+    Parameters
+    ----------
+    indices : array_like
+        A sequence of tuples to specify which spherical mode QQNM combinations to
+        calculate the B prediction for.
+    chif : float
+        The magnitude of the remnant black hole spin.
+    l_max : int
+        The maximum l-mode to consider in the reconstruction.
+    **kwargs :
+        Spin weight arguments to pass to the Qmu function.
+
+    Returns
+    -------
+    Qmu : array_like
+        The quadratic mode mixing coefficients. 
+
+    """
+
+    s1 = kwargs.get("s1", -2)
+    s2 = kwargs.get("s2", 0)
+
+    return [
+        sum(
+            qnm.mu(d, b, a, b, c, sign1, chif, s1)
+            * qnm.mu(h, f, e, f, g, sign2, chif, s2)
+            * kappa(i, j, d, h, b, f, s1, s2)
+            for d in range(np.abs(s1), l_max + 1)
+            for h in range(np.abs(s2), l_max + 1)
+        )
+        for i, j, a, b, c, sign1, e, f, g, sign2 in indices
+    ]
 
 
 def Qmu_D(indices, chif, l_max, **kwargs):
