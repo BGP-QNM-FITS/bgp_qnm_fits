@@ -84,7 +84,7 @@ class PLT_BGP_fit(Base_BGP_fit):
     
     def A_prior(self, A):
         # Flat prior: 0 inside bounds, -inf outside
-        if np.all((self.A_PLT_prior[0] < A) & (A < self.A_PLT_prior[1])):
+        if np.all((self.A_PLT_prior[0] < A) & (A <= self.A_PLT_prior[1])):
             return 0.0
         else:
             return -np.inf
@@ -98,7 +98,7 @@ class PLT_BGP_fit(Base_BGP_fit):
 
     def lam_prior(self, lam):
         # Flat prior: 0 inside bounds, -inf outside
-        if np.all((self.lam_PLT_prior[0] < lam) & (lam < self.lam_PLT_prior[1])):
+        if np.all((self.lam_PLT_prior[0] < lam) & (lam <= self.lam_PLT_prior[1])):
             return 0.0
         else:
             return -np.inf
@@ -174,7 +174,6 @@ class PLT_BGP_fit(Base_BGP_fit):
 
         PLT_term = self._get_PLT_term(t0, PLT_mode_indices, analysis_times, A_PLT_real, A_PLT_imag, t_PLT, lam_PLT)
         data_array_new = masked_data_array - constant_term - PLT_term 
-        #data_array_new = masked_data_array - PLT_term 
 
         ll = self.A_prior(A_PLT_real) + \
              self.A_prior(A_PLT_imag) + \
