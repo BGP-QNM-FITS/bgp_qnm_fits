@@ -15,9 +15,7 @@ jax.config.update("jax_enable_x64", True)
 
 class PLT_BGP_fit(Base_BGP_fit):
     """
-    A class for fitting QNM parameters to data using Bayesian inference.
-    This class extends the Base_BGP_fit class and provides methods for fitting QNM parameters
-    at a specific time or list of times.
+    A class for fitting PLTs via Bayesian inference using MCMC sampling.
     """
 
     def __init__(

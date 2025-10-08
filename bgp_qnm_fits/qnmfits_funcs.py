@@ -429,12 +429,12 @@ class qnm:
                 mus.append(self.mu(ell, m, ellp, mp, nprime, sign, chif, s))
             elif len(k) == 10:
                 kwargs = {"s1": -1, "s2": -1}
-                #mus.append(Qmu_D([k], chif, 8)[0]) 
+                mus.append(Qmu_D([k], chif, 8)[0]) 
                 #mus.append(Qmu_B([k], chif, 8, **kwargs)[0])
-                if k in self.Qmus_C.keys():
-                    mus.append(self.Qmus_C[k])
-                else:
-                    mus.append(0.0 + 0.0j)
+                #if k in self.Qmus_C.keys():
+                #    mus.append(self.Qmus_C[k])
+                #else:
+                #    mus.append(0.0 + 0.0j)
             elif len(k) == 14:
                 if k in self._Cmus_interp.keys():
                     mus.append(self._Cmus_interp[k](chif))
