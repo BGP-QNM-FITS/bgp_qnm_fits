@@ -135,9 +135,14 @@ class BGP_fit(Base_BGP_fit):
             for i, mode in enumerate(self.modes):
                 decay_times = self.linearised_frequency(mode, chif_samples, Mf_samples).imag
                 correction_factors = jnp.exp(-decay_times * t0)
-                decay_corrected_sample_amplitudes = decay_corrected_sample_amplitudes.at[:, i].set(
-                    sample_amplitudes[:, i] * correction_factors
-                )
+                if len(mode) == 2:
+                    decay_corrected_sample_amplitudes = decay_corrected_sample_amplitudes.at[:, i].set(
+                        sample_amplitudes[:, i]
+                    )
+                else:
+                    decay_corrected_sample_amplitudes = decay_corrected_sample_amplitudes.at[:, i].set(
+                        sample_amplitudes[:, i] * correction_factors
+                    )
             sample_amplitudes = decay_corrected_sample_amplitudes
 
         log_samples = jnp.log(sample_amplitudes)
@@ -450,10 +455,10 @@ class BGP_fit(Base_BGP_fit):
         #model_chi_squared_mean, model_chi_squared_lower, model_chi_squared_upper = np.mean(model_chi_squared), np.percentile(model_chi_squared, 25), np.percentile(model_chi_squared, 75)
         #p_value_mean = np.sum(expected_chi_squared < model_chi_squared_mean) / len(expected_chi_squared)
 
-        sample_model = self.get_model_linear(constant_term, mean_vector, ref_params, model_terms)
-        residual = masked_data_array - sample_model
-        mean_r_squared = np.einsum("st, st -> ", np.conj(residual), residual).real
-        p_value_mean = np.sum(expected_chi_squared < mean_r_squared) / len(expected_chi_squared)
+        #sample_model = self.get_model_linear(constant_term, mean_vector, ref_params, model_terms)
+        #residual = masked_data_array - sample_model
+        #mean_r_squared = np.einsum("st, st -> ", np.conj(residual), residual).real
+        #p_value_mean = np.sum(expected_chi_squared < mean_r_squared) / len(expected_chi_squared)
 
         fit = {
             "ls_amplitudes": ls_amplitudes,
@@ -488,9 +493,9 @@ class BGP_fit(Base_BGP_fit):
             "ref_params_nonlinear": ref_params_nonlinear,
             "param_names": self.params,
             "p_values": p_values,
-            "p_value_mean": p_value_mean,
+            #"p_value_mean": p_value_mean,
             "r_squareds": model_chi_squared,
-            "r_squared_mean": mean_r_squared
+            #"r_squared_mean": mean_r_squared
         }
 
         return fit

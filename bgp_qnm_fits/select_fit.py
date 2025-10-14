@@ -302,30 +302,30 @@ class BGP_select(Base_BGP_fit):
             elif len(mode_to_add)==4 and np.sign(mode_to_add[3]) == np.sign(-mode_to_add[1]):
                 n_limit_retrograde[(mode_to_add[0], mode_to_add[1])] += 1
 
-        full_ref_params, model_terms, constant_term, fisher_matrix, b_vector, \
-        covariance_matrix, mean_vector = self.get_fit_arrays(
-            t0, model_times, masked_data_array, Mf_ref, chif_ref, 
-            modes, noise_covariance_lower_triangular
-        )
-        expected_chi_squared = self.get_expected_chi_squared(noise_covariance_matrix, num_draws=self.num_draws)
+        ##full_ref_params, model_terms, constant_term, fisher_matrix, b_vector, \
+        ##covariance_matrix, mean_vector = self.get_fit_arrays(
+        ##    t0, model_times, masked_data_array, Mf_ref, chif_ref, 
+        ##    modes, noise_covariance_lower_triangular
+        ##)
+        ##expected_chi_squared = self.get_expected_chi_squared(noise_covariance_matrix, num_draws=self.num_draws)
 
-        model_chi_squared = self.get_model_chi_squared(masked_data_array, constant_term, full_ref_params, model_terms, mean_vector, covariance_matrix, num_draws=self.num_draws)
-        p_values = np.array([np.sum(expected_chi_squared < chi_sq) / self.num_draws for chi_sq in model_chi_squared])
+        ##model_chi_squared = self.get_model_chi_squared(masked_data_array, constant_term, full_ref_params, model_terms, mean_vector, covariance_matrix, num_draws=self.num_draws)
+        ##p_values = np.array([np.sum(expected_chi_squared < chi_sq) / self.num_draws for chi_sq in model_chi_squared])
 
         #model_chi_squared_mean, model_chi_squared_lower, model_chi_squared_upper = np.mean(model_chi_squared), np.percentile(model_chi_squared, 25), np.percentile(model_chi_squared, 75)
         #p_value_mean = np.sum(expected_chi_squared < model_chi_squared_mean) / self.num_draws
 
-        sample_model = self.get_model_linear(constant_term, mean_vector, full_ref_params, model_terms)
-        residual = masked_data_array - sample_model
-        r_squared_mean = np.einsum("st, st -> ", np.conj(residual), residual).real
-        p_value_mean = np.sum(expected_chi_squared < r_squared_mean) / self.num_draws
+        ##sample_model = self.get_model_linear(constant_term, mean_vector, full_ref_params, model_terms)
+        ##residual = masked_data_array - sample_model
+        ##r_squared_mean = np.einsum("st, st -> ", np.conj(residual), residual).real
+        ##p_value_mean = np.sum(expected_chi_squared < r_squared_mean) / self.num_draws
 
-        self.r_squareds = model_chi_squared
-        self.r_squared_mean = r_squared_mean
+        ##self.r_squareds = model_chi_squared
+        ##self.r_squared_mean = r_squared_mean
 
-        self.p_values = p_values
-        self.p_value_mean = p_value_mean
+        ##self.p_values = p_values
+        ##self.p_value_mean = p_value_mean
 
         self.full_modes = modes
 
-        self.dot_products = mode_dot_products
+        ##self.dot_products = mode_dot_products

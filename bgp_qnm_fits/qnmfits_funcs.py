@@ -17,6 +17,7 @@ from urllib.request import urlretrieve
 from scipy.integrate import dblquad as dbl_integrate
 from spherical import Wigner3j as w3j
 from bgp_qnm_fits.utils import mismatch
+from bgp_qnm_fits.data.CCE import SXS_CCE
 import pickle
 from scipy.interpolate import interp1d
 
@@ -39,34 +40,23 @@ class qnm:
         # evaluation
         self._interpolated_qnm_funcs = {}
 
-        #Load the Cmus.json file
+        #Load the C_mixing_coefficients.pkl file
         data_dir = Path(__file__).parent
-        cmus_file = data_dir / 'Cmus.pkl'
+        cmus_file = data_dir / 'C_mixing_coefficients.pkl'
         with open(cmus_file, 'rb') as file:
             Cmus = pickle.load(file)
 
-        indices_list = [
-            (6, 6, 2, 2, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1),
-            (7, 6, 2, 2, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1),
-            (6, -6, 2, -2, 0, -1, 2, -2, 0, -1, 2, -2, 0, -1),
-            (7, -6, 2, -2, 0, -1, 2, -2, 0, -1, 2, -2, 0, -1)
-        ]
-
         self._Cmus_interp = {}
 
-        for i, indices in enumerate(indices_list):
+        for i, indices in enumerate(Cmus.keys()):
             Cmus_values = Cmus[indices]
             spins = np.array([float(key) for key in Cmus_values.keys()])
-            cmu_values = np.array([complex(value) for value in Cmus_values.values()])
+            cmu_values = np.array([complex(value[0]) for value in Cmus_values.values()])
             cmu_real_interp = interp1d(spins, cmu_values.real, kind="cubic", fill_value="extrapolate")
             cmu_imag_interp = interp1d(spins, cmu_values.imag, kind="cubic", fill_value="extrapolate")
             self._Cmus_interp[indices] = lambda spin, real_interp=cmu_real_interp, imag_interp=cmu_imag_interp: (
             real_interp(spin) + 1j * imag_interp(spin)
             )
-
-        Qmus_file = data_dir / 'Qmus_0010_C.pkl'
-        with open(Qmus_file, 'rb') as file:
-            self.Qmus_C = pickle.load(file)
 
         # The method used by the qnm package breaks down for certain modes that
         # approach the imaginary axis (perhaps most notably, the (2,2,8) mode).
@@ -427,20 +417,14 @@ class qnm:
             elif len(k) == 6:
                 ell, m, ellp, mp, nprime, sign = k
                 mus.append(self.mu(ell, m, ellp, mp, nprime, sign, chif, s))
-            elif len(k) == 10:
-                kwargs = {"s1": -1, "s2": -1}
-                mus.append(Qmu_D([k], chif, 8)[0]) 
+            elif len(k) == 10 or len(k) == 14:
+                #kwargs = {"s1": -1, "s2": -1}
+                #mus.append(Qmu_D([k], chif, 8)[0]) 
                 #mus.append(Qmu_B([k], chif, 8, **kwargs)[0])
-                #if k in self.Qmus_C.keys():
-                #    mus.append(self.Qmus_C[k])
-                #else:
-                #    mus.append(0.0 + 0.0j)
-            elif len(k) == 14:
                 if k in self._Cmus_interp.keys():
                     mus.append(self._Cmus_interp[k](chif))
                 else:
                     mus.append(0.0 + 0.0j)
-
         return mus
 
 qnm = qnm()
