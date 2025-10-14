@@ -6,7 +6,7 @@ bgp_qnm_fits.egg-info/
 
 tests/
 
-bgp_qnm_fits.C_mixing.pkl
-bgp_qnm_fits.Cmus.pkl
-bgp_qnm_fits.get_C_mixing.py
-bgp_qnm_fits.get_cubic_mixing.py
+bgp_qnm_fits/C_mixing.pkl
+bgp_qnm_fits/Cmus.pkl
+bgp_qnm_fits/get_C_mixing.py
+bgp_qnm_fits/get_cubic_mixing.py
