@@ -79,7 +79,7 @@ class BGP_fit(Base_BGP_fit):
             covariance_matrix,
             shape=(self.num_samples),
         )
-                
+
         return samples, key
 
     def linearised_frequency(self, mode, chif_sample, Mf_sample):
@@ -267,7 +267,6 @@ class BGP_fit(Base_BGP_fit):
             model_array (array): The linear model array.
         """
         return constant_term + jnp.einsum("p,stp->st", mean_vector - ref_params, model_terms)
-    
 
     def get_expected_chi_squared(self, noise_covariance):
         dist_samples = np.zeros((self.num_samples))
@@ -277,9 +276,10 @@ class BGP_fit(Base_BGP_fit):
             dist_samples += 2 * np.sum(eigvals * normal_samples**2, axis=1)
 
         return dist_samples
-    
 
-    def get_model_chi_squared(self, masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix):
+    def get_model_chi_squared(
+        self, masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix
+    ):
         samples, key = self._get_samples(mean_vector, covariance_matrix)
         r_squareds = np.zeros(self.num_samples)
         for j in range(self.num_samples):
@@ -307,42 +307,30 @@ class BGP_fit(Base_BGP_fit):
 
         for i, mode in enumerate(self.modes):
             omegas = self.linearised_frequency(mode, chif_samples, Mf_samples)
-            re_A = samples[:, 2*i]
-            im_A = samples[:, 2*i+1]
-            if self.data_type == 'strain':
-                corrected_samples = corrected_samples.at[:, 2*i].set(
-                    re_A
-                ) 
-                corrected_samples = corrected_samples.at[:, 2*i+1].set(
-                    im_A
-                )
-            if self.data_type == 'news':
+            re_A = samples[:, 2 * i]
+            im_A = samples[:, 2 * i + 1]
+            if self.data_type == "strain":
+                corrected_samples = corrected_samples.at[:, 2 * i].set(re_A)
+                corrected_samples = corrected_samples.at[:, 2 * i + 1].set(im_A)
+            if self.data_type == "news":
                 A_news = re_A + 1j * im_A
                 A_strain = A_news / (-1j * omegas)
-                corrected_samples = corrected_samples.at[:, 2*i].set(
-                    A_strain.real
-                )
-                corrected_samples = corrected_samples.at[:, 2*i+1].set(
-                    A_strain.imag
-                )
-            if self.data_type == 'psi4':
+                corrected_samples = corrected_samples.at[:, 2 * i].set(A_strain.real)
+                corrected_samples = corrected_samples.at[:, 2 * i + 1].set(A_strain.imag)
+            if self.data_type == "psi4":
                 A_psi4 = re_A + 1j * im_A
-                A_strain = (A_psi4 / (-omegas**2)) * -2 # Factor of -2 to match scri convention 
-                corrected_samples = corrected_samples.at[:, 2*i].set(
-                    A_strain.real
-                )
-                corrected_samples = corrected_samples.at[:, 2*i+1].set(
-                    A_strain.imag
-                )
+                A_strain = (A_psi4 / (-(omegas**2))) * -2  # Factor of -2 to match scri convention
+                corrected_samples = corrected_samples.at[:, 2 * i].set(A_strain.real)
+                corrected_samples = corrected_samples.at[:, 2 * i + 1].set(A_strain.imag)
 
-        return corrected_samples 
-    
+        return corrected_samples
+
     def solve_via_cholesky(self, fisher, b):
-        L = cholesky(fisher, lower=True) 
+        L = cholesky(fisher, lower=True)
         y = jax.scipy.linalg.solve_triangular(L, b, lower=True)
         x = jax.scipy.linalg.solve_triangular(L.T, y, lower=False)
         return x
-    
+
     def get_fit_at_t0(self, t0):
         """
         Perform the fit at a specific time t0.
@@ -355,10 +343,10 @@ class BGP_fit(Base_BGP_fit):
         analysis_times, masked_data_array = self._mask_data(t0)
         model_times = analysis_times - t0
 
-        chif_nonlinear, Mf_nonlinear = self.get_nonlinear_mf_chif(t0, self.T, self.spherical_modes, self.chif_ref, self.Mf_ref)
-        _, ref_params_nonlinear = self._get_ls_amplitudes(
-            t0, Mf_nonlinear, chif_nonlinear
-        )  
+        chif_nonlinear, Mf_nonlinear = self.get_nonlinear_mf_chif(
+            t0, self.T, self.spherical_modes, self.chif_ref, self.Mf_ref
+        )
+        _, ref_params_nonlinear = self._get_ls_amplitudes(t0, Mf_nonlinear, chif_nonlinear)
 
         if self.use_nonlinear_params:
             chif_ref, Mf_ref = chif_nonlinear, Mf_nonlinear
@@ -376,9 +364,7 @@ class BGP_fit(Base_BGP_fit):
             )
 
         exponential_terms = self._get_exponential_terms(model_times, frequencies)
-        ls_amplitudes, ref_params = self._get_ls_amplitudes(
-            t0, Mf_ref, chif_ref
-        )  
+        ls_amplitudes, ref_params = self._get_ls_amplitudes(t0, Mf_ref, chif_ref)
         model_terms = self.get_model_terms(
             model_times,
             ls_amplitudes,
@@ -403,7 +389,7 @@ class BGP_fit(Base_BGP_fit):
             noise_covariance_lower_triangular,
         )
 
-        # TODO use cholesky solve? 
+        # TODO use cholesky solve?
         mean_vector = jnp.linalg.solve(fisher_matrix, b_vector) + ref_params
         covariance_matrix = get_inverse(fisher_matrix)
         samples, key = self._get_samples(mean_vector, covariance_matrix)
@@ -412,17 +398,17 @@ class BGP_fit(Base_BGP_fit):
             samples = self.strain_correct(samples)
             ref_params = self.strain_correct(ref_params[None, :])[0, :]
             ref_params_nonlinear = self.strain_correct(ref_params_nonlinear[None, :])[0, :]
-            #mean_vector = self.strain_correct(mean_vector[None, :])[0, :]
-            #ls_amplitudes_corrected = jnp.zeros_like(ls_amplitudes)
-            #for i, mode in enumerate(self.modes):
+            # mean_vector = self.strain_correct(mean_vector[None, :])[0, :]
+            # ls_amplitudes_corrected = jnp.zeros_like(ls_amplitudes)
+            # for i, mode in enumerate(self.modes):
             #    re_A = ref_params[2*i]
             #    im_A = ref_params[2*i+1]
             #    ls_amplitudes_corrected = ls_amplitudes_corrected.at[i].set(
             #        re_A + 1j * im_A
             #    )
-            #ls_amplitudes = ls_amplitudes_corrected
-            #constant_term = self.get_const_term(ls_amplitudes, exponential_terms, mixing_coefficients)
-            #model_terms = self.get_model_terms(
+            # ls_amplitudes = ls_amplitudes_corrected
+            # constant_term = self.get_const_term(ls_amplitudes, exponential_terms, mixing_coefficients)
+            # model_terms = self.get_model_terms(
             #                    model_times,
             #                    ls_amplitudes,
             #                    exponential_terms,
@@ -432,7 +418,7 @@ class BGP_fit(Base_BGP_fit):
             #                    frequency_derivatives,
             #                    Mf_ref,
             #                    )
-            
+
         (
             mean_amplitude,
             mean_phase,
@@ -449,16 +435,20 @@ class BGP_fit(Base_BGP_fit):
 
         expected_chi_squared = self.get_expected_chi_squared(noise_covariance_matrix)
 
-        model_chi_squared = self.get_model_chi_squared(masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix)
-        p_values = np.array([np.sum(expected_chi_squared < chi_sq) / len(expected_chi_squared) for chi_sq in model_chi_squared])
+        model_chi_squared = self.get_model_chi_squared(
+            masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix
+        )
+        p_values = np.array(
+            [np.sum(expected_chi_squared < chi_sq) / len(expected_chi_squared) for chi_sq in model_chi_squared]
+        )
 
-        #model_chi_squared_mean, model_chi_squared_lower, model_chi_squared_upper = np.mean(model_chi_squared), np.percentile(model_chi_squared, 25), np.percentile(model_chi_squared, 75)
-        #p_value_mean = np.sum(expected_chi_squared < model_chi_squared_mean) / len(expected_chi_squared)
+        # model_chi_squared_mean, model_chi_squared_lower, model_chi_squared_upper = np.mean(model_chi_squared), np.percentile(model_chi_squared, 25), np.percentile(model_chi_squared, 75)
+        # p_value_mean = np.sum(expected_chi_squared < model_chi_squared_mean) / len(expected_chi_squared)
 
-        #sample_model = self.get_model_linear(constant_term, mean_vector, ref_params, model_terms)
-        #residual = masked_data_array - sample_model
-        #mean_r_squared = np.einsum("st, st -> ", np.conj(residual), residual).real
-        #p_value_mean = np.sum(expected_chi_squared < mean_r_squared) / len(expected_chi_squared)
+        # sample_model = self.get_model_linear(constant_term, mean_vector, ref_params, model_terms)
+        # residual = masked_data_array - sample_model
+        # mean_r_squared = np.einsum("st, st -> ", np.conj(residual), residual).real
+        # p_value_mean = np.sum(expected_chi_squared < mean_r_squared) / len(expected_chi_squared)
 
         fit = {
             "ls_amplitudes": ls_amplitudes,
@@ -493,9 +483,9 @@ class BGP_fit(Base_BGP_fit):
             "ref_params_nonlinear": ref_params_nonlinear,
             "param_names": self.params,
             "p_values": p_values,
-            #"p_value_mean": p_value_mean,
+            # "p_value_mean": p_value_mean,
             "r_squareds": model_chi_squared,
-            #"r_squared_mean": mean_r_squared
+            # "r_squared_mean": mean_r_squared
         }
 
         return fit

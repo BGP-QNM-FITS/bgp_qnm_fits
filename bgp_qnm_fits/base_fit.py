@@ -33,7 +33,7 @@ class Base_BGP_fit:
         include_chif=False,
         include_Mf=False,
         strain_parameters=False,
-        data_type=None
+        data_type=None,
     ):
         """
         Initialize the Base_BGP_fit class.
@@ -77,7 +77,7 @@ class Base_BGP_fit:
         if self.strain_parameters:
             if self.data_type not in ["news", "psi4", "strain"]:
                 raise ValueError(
-                    "If strain_parameters is True, data_type must be one of ['news', 'psi4', 'strain']." \
+                    "If strain_parameters is True, data_type must be one of ['news', 'psi4', 'strain']."
                     "Parameters will be corrected to match the strain domain values"
                 )
 
@@ -97,11 +97,11 @@ class Base_BGP_fit:
             self.kernel(jnp.array(test_times), **self.kernel_param_dict[self.spherical_modes[0]])
         )
         self.is_GP_diagonal = jnp.count_nonzero(test_kernel_matrix - jnp.diag(jnp.diagonal(test_kernel_matrix))) == 0
-        
-        #print("##################### Checks #####################")
-        #print("Is kernel diagonal?", self.is_GP_diagonal)
-        #print("Params in model:", self.params)
-        #print("##################################################")
+
+        # print("##################### Checks #####################")
+        # print("Is kernel diagonal?", self.is_GP_diagonal)
+        # print("Params in model:", self.params)
+        # print("##################################################")
 
     def _mask_data(self, t0):
         """
@@ -151,7 +151,7 @@ class Base_BGP_fit:
             float: The mismatch value for the given mass and spin parameters.
         """
         chif_mag, Mf = chif_mf
-        
+
         best_fit = qnmfits.multimode_ringdown_fit(
             self.times,
             self.data_dict,
@@ -204,8 +204,7 @@ class Base_BGP_fit:
         Returns:
             complex: Frequency of the QNM.
         """
-        return qnmfits.qnm.omega_list([mode], chif, Mf)[0] 
-    
+        return qnmfits.qnm.omega_list([mode], chif, Mf)[0]
 
     def _get_mixing(self, mode, sph_mode, chif):
         """
@@ -217,8 +216,7 @@ class Base_BGP_fit:
         Returns:
             complex: Mixing coefficient for the QNM mode.
         """
-        return qnmfits.qnm.mu_list([sph_mode + mode], chif)[0] 
-
+        return qnmfits.qnm.mu_list([sph_mode + mode], chif)[0]
 
     def _get_ls_amplitudes(self, t0, Mf, chif, t0_method="closest"):
         """
@@ -293,8 +291,8 @@ class Base_BGP_fit:
         """
 
         # TODO It would be better for the noise to be calculated before it's passed to this class,
-        # then only a single noise specification would need to be passed (calculated at all times) and sliced as needed. 
-        # This would bring it in alignment with qnmfits. 
+        # then only a single noise specification would need to be passed (calculated at all times) and sliced as needed.
+        # This would bring it in alignment with qnmfits.
         # Have the shape of the specification determine the covariance matrix form i.e.
         # L ~ 1 x beta (scalar) diagonal constant
         # L ~ 2 x beta (vector) diagonal variable
@@ -516,7 +514,7 @@ class Base_BGP_fit:
         Returns:
             jnp.ndarray: A 2D JAX array representing the Fisher matrix, where each element corresponds to a pair of parameters in `params`.
 
-        """ 
+        """
 
         L_model_terms = solve_triangular(
             noise_covariance_lower_triangular, model_terms, lower=True
@@ -565,4 +563,4 @@ class Base_BGP_fit:
         if self.is_GP_diagonal:
             return jnp.real(b_vector) * (analysis_times[-1] - analysis_times[0]) / len(analysis_times)
         else:
-            return jnp.real(b_vector) 
+            return jnp.real(b_vector)

@@ -2,7 +2,7 @@ import pickle
 import sys
 import CCE as CCE
 import numpy as np
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 from pathlib import Path
 from bgp_qnm_fits import (
     get_residuals,
@@ -77,7 +77,7 @@ SIM_TRAINING_MODE_RULES = {
 }
 
 SMOOTHNESS = 1e-3
-TIME_SHIFT = 0 
+TIME_SHIFT = 0
 
 # These determine the parameter and training range but do not have to match `analysis times' used later.
 
@@ -88,8 +88,8 @@ TIME_STEP = 0.1
 TRAINING_START_TIME_WN = 0
 TRAINING_RANGE_WN = 200
 
-TRAINING_START_TIME_GP = 20 
-TRAINING_RANGE_GP = 60 
+TRAINING_START_TIME_GP = 20
+TRAINING_RANGE_GP = 60
 
 # Define training bounds
 
@@ -145,26 +145,27 @@ HYPERPARAM_RULE_DICT_GPC = {
     "a": "replace",
 }
 
+
 def get_parameters(data_type="strain", R_lm_id_big=None):
     R_dict_WN = {}
-    R_dict_GP = {} 
+    R_dict_GP = {}
     R_dict_big = {}
     param_dict = {}
 
-    times = np.arange(
-        RESIDUAL_BIG_START, RESIDUAL_BIG_END + RESIDUAL_BIG_START, TIME_STEP
-    )
+    times = np.arange(RESIDUAL_BIG_START, RESIDUAL_BIG_END + RESIDUAL_BIG_START, TIME_STEP)
 
     mask_WN = (times >= TRAINING_START_TIME_WN) & (times < TRAINING_START_TIME_WN + TRAINING_RANGE_WN)
-    mask_GP = (times >= TRAINING_START_TIME_GP) & (times < TRAINING_START_TIME_GP + TRAINING_RANGE_GP) 
+    mask_GP = (times >= TRAINING_START_TIME_GP) & (times < TRAINING_START_TIME_GP + TRAINING_RANGE_GP)
 
     for sim_id in SIMNUMS:
         print(sim_id)
 
         sim_main = CCE.SXS_CCE(sim_id, type=data_type, lev="Lev5", radius="R2")
-        sim_lower = CCE.SXS_CCE(sim_id, type=data_type, lev="Lev4", radius="R2")  # This has the smallest residual relative to sim_main
+        sim_lower = CCE.SXS_CCE(
+            sim_id, type=data_type, lev="Lev4", radius="R2"
+        )  # This has the smallest residual relative to sim_main
 
-        if R_lm_id_big is None: 
+        if R_lm_id_big is None:
             R_lm_big = get_residuals(
                 sim_main,
                 sim_lower,
@@ -188,7 +189,7 @@ def get_parameters(data_type="strain", R_lm_id_big=None):
         R_dict_WN[sim_id] = {key: value[mask_WN] for key, value in R_lm_big.items()}
         R_dict_GP[sim_id] = {key: value[mask_GP] for key, value in R_lm_big.items()}
         R_dict_big[sim_id] = R_lm_big
-        param_dict[sim_id] = params_lm 
+        param_dict[sim_id] = params_lm
 
     with open(f"R_dict_{data_type}_big.pkl", "wb") as f:
         pickle.dump(R_dict_big, f)
@@ -252,9 +253,10 @@ def get_hyperparams_GPC(R_dict, param_dict):
 
     return hyperparam_list, le, tuned_params
 
+
 if __name__ == "__main__":
 
-    #for data_type in ["strain", "news", "psi4"]:
+    # for data_type in ["strain", "news", "psi4"]:
     for data_type in ["news"]:
 
         print(f"Training on {data_type}...")
@@ -267,7 +269,7 @@ if __name__ == "__main__":
         hyperparam_list_WN, le_WN, tuned_params_WN = get_hyperparams_WN(R_dict_WN, param_dict)
         hyperparam_list_GP, le_GP, tuned_params_GP = get_hyperparams_GP(R_dict_GP, param_dict)
         hyperparam_list_GPC, le_GPC, tuned_params_GPC = get_hyperparams_GPC(R_dict_GP, param_dict)
-        
+
         with open(f"tuned_params_WN_{data_type}.pkl", "wb") as f:
             pickle.dump(tuned_params_WN, f)
         with open(f"tuned_params_GP_{data_type}.pkl", "wb") as f:
@@ -276,14 +278,14 @@ if __name__ == "__main__":
             pickle.dump(tuned_params_GPC, f)
 
 
-# Strain: 
+# Strain:
 # Optimal parameters: {'sigma_max': 0.20294461292163857} Log evidence: -3765876.728482591
 # Optimal parameters: {'sigma_max': 5.517601498993699, 'period': 1.608100776477014} Log evidence: -1740056.1988961035
 
 # News:
 # Optimal parameters: {'sigma_max': 0.20202315621798156} Log evidence: -4313245.295242246
 # Optimal parameters: {'sigma_max': 6.916479343926145, 'period': 1.6788343847045542} Log evidence: -2169834.025735345
-# Optimal parameters: {'sigma_max': 8.28904248745442, 'period': 1.959288624090839, 'length_scale_2': 0.4204419582784812, 'period_2': 1.0019473516595827, 'a': 0.11533919911875894} 
+# Optimal parameters: {'sigma_max': 8.28904248745442, 'period': 1.959288624090839, 'length_scale_2': 0.4204419582784812, 'period_2': 1.0019473516595827, 'a': 0.11533919911875894}
 
 # Psi4:
 # Optimal parameters: {'sigma_max': 0.19031816565801468} Log evidence: -4965094.051965869

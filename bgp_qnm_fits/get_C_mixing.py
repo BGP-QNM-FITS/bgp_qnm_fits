@@ -4,7 +4,7 @@ import spherical
 import numpy as np
 import qnm as qnm_loader
 import qnmfits_funcs as qnmfits
-import spheroidal  
+import spheroidal
 
 from scipy.optimize import minimize
 from scipy.interpolate import UnivariateSpline
@@ -15,42 +15,32 @@ from spherical import Wigner3j as w3j
 from bgp_qnm_fits.utils import mismatch
 import bgp_qnm_fits as bgp
 
-from bgp_qnm_fits.qnmfits_funcs import qnm 
+from bgp_qnm_fits.qnmfits_funcs import qnm
 import json
 import pickle
 
 
 indices_list = [
-        (4, 4, 2, 2, 0, 1, 2, 2, 0, 1),
-        (5, 4, 2, 2, 0, 1, 2, 2, 0, 1),
-
-        (4,-4, 2, -2, 0, -1, 2, -2, 0, -1),
-        (5,-4, 2, -2, 0, -1, 2, -2, 0, -1),
-
-        (5, 5, 2, 2, 0, 1, 3, 3, 0, 1),
-        (6, 5, 2, 2, 0, 1, 3, 3, 0, 1),
-
-        (5,-5, 2, -2, 0, -1, 3, -3, 0, -1), 
-        (6,-5, 2, -2, 0, -1, 3, -3, 0, -1),
-
-        (6, 6, 2, 2, 0, 1, 4, 4, 0, 1),
-        (7, 6, 2, 2, 0, 1, 4, 4, 0, 1),
-
-        (6,-6, 2,-2, 0,-1, 4,-4, 0,-1),
-        (7,-6, 2,-2, 0,-1, 4,-4, 0,-1),
-
-        (6, 6, 3, 3, 0 ,1 ,3 ,3 ,0 ,1),
-        (7 ,6 ,3 ,3 ,0 ,1 ,3 ,3 ,0 ,1),
-
-        (6 ,-6 ,3 ,-3 ,0 ,-1 ,3 ,-3 ,0 ,-1),
-        (7 ,-6 ,3 ,-3 ,0 ,-1 ,3 ,-3 ,0 ,-1),
-
-        (6, 6, 2, 2, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1),
-        (7, 6, 2, 2, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1),
-        
-        (6,-6, 2,-2, 0,-1, 2,-2, 0,-1, 2,-2, 0,-1),
-        (7,-6, 2,-2, 0,-1, 2,-2, 0,-1, 2,-2, 0,-1),
-
+    (4, 4, 2, 2, 0, 1, 2, 2, 0, 1),
+    (5, 4, 2, 2, 0, 1, 2, 2, 0, 1),
+    (4, -4, 2, -2, 0, -1, 2, -2, 0, -1),
+    (5, -4, 2, -2, 0, -1, 2, -2, 0, -1),
+    (5, 5, 2, 2, 0, 1, 3, 3, 0, 1),
+    (6, 5, 2, 2, 0, 1, 3, 3, 0, 1),
+    (5, -5, 2, -2, 0, -1, 3, -3, 0, -1),
+    (6, -5, 2, -2, 0, -1, 3, -3, 0, -1),
+    (6, 6, 2, 2, 0, 1, 4, 4, 0, 1),
+    (7, 6, 2, 2, 0, 1, 4, 4, 0, 1),
+    (6, -6, 2, -2, 0, -1, 4, -4, 0, -1),
+    (7, -6, 2, -2, 0, -1, 4, -4, 0, -1),
+    (6, 6, 3, 3, 0, 1, 3, 3, 0, 1),
+    (7, 6, 3, 3, 0, 1, 3, 3, 0, 1),
+    (6, -6, 3, -3, 0, -1, 3, -3, 0, -1),
+    (7, -6, 3, -3, 0, -1, 3, -3, 0, -1),
+    (6, 6, 2, 2, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1),
+    (7, 6, 2, 2, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1),
+    (6, -6, 2, -2, 0, -1, 2, -2, 0, -1, 2, -2, 0, -1),
+    (7, -6, 2, -2, 0, -1, 2, -2, 0, -1, 2, -2, 0, -1),
 ]
 
 
@@ -104,7 +94,7 @@ def Lmu_C(indices, chif, l_max, **kwargs):
     Returns
     -------
     Qmu : array_like
-        The quadratic mode mixing coefficients. 
+        The quadratic mode mixing coefficients.
 
     """
 
@@ -118,14 +108,10 @@ def Lmu_C(indices, chif, l_max, **kwargs):
         S = spheroidal.harmonic(-2, L, M, gamma)
 
         def f_real(theta, phi):
-            return np.real(
-                np.sin(theta) * S(theta, phi) * np.conj(sYlm(i, j, theta, phi))
-            )
+            return np.real(np.sin(theta) * S(theta, phi) * np.conj(sYlm(i, j, theta, phi)))
 
         def f_imag(theta, phi):
-            return np.imag(
-                np.sin(theta) * S(theta, phi) * np.conj(sYlm(i, j, theta, phi))
-            )
+            return np.imag(np.sin(theta) * S(theta, phi) * np.conj(sYlm(i, j, theta, phi)))
 
         alpha_real = dbl_integrate(f_real, 0, 2 * np.pi, 0, np.pi)[0]
         alpha_imag = dbl_integrate(f_imag, 0, 2 * np.pi, 0, np.pi)[0]
@@ -154,7 +140,7 @@ def Qmu_C(indices, chif, l_max, **kwargs):
     Returns
     -------
     Qmu : array_like
-        The quadratic mode mixing coefficients. 
+        The quadratic mode mixing coefficients.
 
     """
 
@@ -168,14 +154,10 @@ def Qmu_C(indices, chif, l_max, **kwargs):
         S = spheroidal.harmonic(-2, L, M, gamma)
 
         def f_real(theta, phi):
-            return np.real(
-                np.sin(theta) * S(theta, phi) * np.conj(sYlm(i, j, theta, phi))
-            )
+            return np.real(np.sin(theta) * S(theta, phi) * np.conj(sYlm(i, j, theta, phi)))
 
         def f_imag(theta, phi):
-            return np.imag(
-                np.sin(theta) * S(theta, phi) * np.conj(sYlm(i, j, theta, phi))
-            )
+            return np.imag(np.sin(theta) * S(theta, phi) * np.conj(sYlm(i, j, theta, phi)))
 
         alpha_real = dbl_integrate(f_real, 0, 2 * np.pi, 0, np.pi)[0]
         alpha_imag = dbl_integrate(f_imag, 0, 2 * np.pi, 0, np.pi)[0]
@@ -204,7 +186,7 @@ def Cmu_C(indices, chif, l_max, **kwargs):
     Returns
     -------
     Qmu : array_like
-        The quadratic mode mixing coefficients. 
+        The quadratic mode mixing coefficients.
 
     """
 
@@ -218,14 +200,10 @@ def Cmu_C(indices, chif, l_max, **kwargs):
         S = spheroidal.harmonic(-2, L, M, gamma)
 
         def f_real(theta, phi):
-            return np.real(
-                np.sin(theta) * S(theta, phi) * np.conj(sYlm(i, j, theta, phi))
-            )
+            return np.real(np.sin(theta) * S(theta, phi) * np.conj(sYlm(i, j, theta, phi)))
 
         def f_imag(theta, phi):
-            return np.imag(
-                np.sin(theta) * S(theta, phi) * np.conj(sYlm(i, j, theta, phi))
-            )
+            return np.imag(np.sin(theta) * S(theta, phi) * np.conj(sYlm(i, j, theta, phi)))
 
         alpha_real = dbl_integrate(f_real, 0, 2 * np.pi, 0, np.pi)[0]
         alpha_imag = dbl_integrate(f_imag, 0, 2 * np.pi, 0, np.pi)[0]
@@ -237,28 +215,28 @@ def Cmu_C(indices, chif, l_max, **kwargs):
 
 def __main__():
 
-    #sim = bgp.SXS_CCE("0001", type="strain", lev="Lev5", radius="R2")
-    #chif = sim.chif_mag
+    # sim = bgp.SXS_CCE("0001", type="strain", lev="Lev5", radius="R2")
+    # chif = sim.chif_mag
 
-    #print(qnm.mu_list([(2,2,2,2,0,1)], chif))
-    #print(qnm.mu_list([(3,2,2,2,0,1)], chif))
+    # print(qnm.mu_list([(2,2,2,2,0,1)], chif))
+    # print(qnm.mu_list([(3,2,2,2,0,1)], chif))
 
-    #print(Lmu_C([(2,2,2,2,0,1)], chif, 8))
-    #print(Lmu_C([(3,2,2,2,0,1)], chif, 8))
+    # print(Lmu_C([(2,2,2,2,0,1)], chif, 8))
+    # print(Lmu_C([(3,2,2,2,0,1)], chif, 8))
 
     chifs = np.linspace(0, 0.99, 10)
     l_max = 8
-    mixing_dict = {} 
+    mixing_dict = {}
 
     for indices in indices_list:
 
-        print(f'{indices=}')
+        print(f"{indices=}")
 
         mixing_dict_chif = {}
 
         for chif in chifs:
 
-            print(f'{chif=}')
+            print(f"{chif=}")
 
             if len(indices) == 10:
                 mixing = Qmu_C([indices], chif, l_max)
@@ -266,8 +244,8 @@ def __main__():
                 mixing = Cmu_C([indices], chif, l_max)
             else:
                 raise ValueError("Error! Wrong length tuple.")
-            
-            print(mixing) 
+
+            print(mixing)
 
             mixing_dict_chif[chif] = mixing
 
@@ -276,6 +254,7 @@ def __main__():
     output_file = Path("C_mixing_coefficients.pkl")
     with open(output_file, "wb") as f:
         pickle.dump(mixing_dict, f)
+
 
 if __name__ == "__main__":
     __main__()

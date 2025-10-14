@@ -21,6 +21,7 @@ from bgp_qnm_fits.data.CCE import SXS_CCE
 import pickle
 from scipy.interpolate import interp1d
 
+
 class qnm:
     """
     Class for loading quasinormal mode (QNM) frequencies and spherical-
@@ -40,10 +41,10 @@ class qnm:
         # evaluation
         self._interpolated_qnm_funcs = {}
 
-        #Load the C_mixing_coefficients.pkl file
+        # Load the C_mixing_coefficients.pkl file
         data_dir = Path(__file__).parent
-        cmus_file = data_dir / 'C_mixing_coefficients.pkl'
-        with open(cmus_file, 'rb') as file:
+        cmus_file = data_dir / "C_mixing_coefficients.pkl"
+        with open(cmus_file, "rb") as file:
             Cmus = pickle.load(file)
 
         self._Cmus_interp = {}
@@ -55,7 +56,7 @@ class qnm:
             cmu_real_interp = interp1d(spins, cmu_values.real, kind="cubic", fill_value="extrapolate")
             cmu_imag_interp = interp1d(spins, cmu_values.imag, kind="cubic", fill_value="extrapolate")
             self._Cmus_interp[indices] = lambda spin, real_interp=cmu_real_interp, imag_interp=cmu_imag_interp: (
-            real_interp(spin) + 1j * imag_interp(spin)
+                real_interp(spin) + 1j * imag_interp(spin)
             )
 
         # The method used by the qnm package breaks down for certain modes that
@@ -63,7 +64,7 @@ class qnm:
         # We load data for these modes separately, computed by Cook &
         # Zalutskiy.
 
-        data_dir = Path(__file__).parent / 'Data'
+        data_dir = Path(__file__).parent / "Data"
 
         # Dictionary to store the mode data, using our preferred labelling
         # convention
@@ -77,20 +78,18 @@ class qnm:
 
         for ell, m, n in self.multiplet_list:
 
-            file_path = data_dir / f'KerrQNM_{n:02}.h5'
+            file_path = data_dir / f"KerrQNM_{n:02}.h5"
             self.download_check[n] = file_path.exists()
             if self.download_check[n]:
 
                 # Open file
-                with h5py.File(file_path, 'r') as f:
+                with h5py.File(file_path, "r") as f:
 
                     # Read data for each multiplet, and store in the
                     # multiplet_data dictionary with the preferred labelling
                     # convention
                     for i in [0, 1]:
-                        multiplet_data[(ell, m, n+i)] = np.array(
-                            f[f'n{n:02}/m{m:+03}/{{{ell},{m},{{{n},{i}}}}}']
-                            )
+                        multiplet_data[(ell, m, n + i)] = np.array(f[f"n{n:02}/m{m:+03}/{{{ell},{m},{{{n},{i}}}}}"])
 
         for key, data in multiplet_data.items():
 
@@ -123,9 +122,7 @@ class qnm:
 
             # Add these interpolated functions to the frequency_funcs
             # dictionary
-            self._interpolated_qnm_funcs[key] = [
-                (real_omega_interp, imag_omega_interp), mu_interp
-                ]
+            self._interpolated_qnm_funcs[key] = [(real_omega_interp, imag_omega_interp), mu_interp]
 
     def _interpolate(self, ell, m, n, s=-2):
 
@@ -134,7 +131,7 @@ class qnm:
         n_load = n
         for ellp, mp, nprime in self.multiplet_list:
             if (ell == ellp) & (m == mp):
-                if n > nprime+1:
+                if n > nprime + 1:
                     n_load -= 1
 
         qnm_func = qnm_loader.modes_cache(s, ell, m, n_load)
@@ -161,9 +158,7 @@ class qnm:
             mu_interp.append((real_mu_interp, imag_mu_interp))
 
         # Add these interpolated functions to the frequency_funcs dictionary
-        self._interpolated_qnm_funcs[ell, m, n, s] = [
-            (real_omega_interp, imag_omega_interp), mu_interp
-            ]
+        self._interpolated_qnm_funcs[ell, m, n, s] = [(real_omega_interp, imag_omega_interp), mu_interp]
 
     def omega(self, ell, m, n, sign, chif, Mf=1, s=-2):
         r"""
@@ -232,13 +227,13 @@ class qnm:
             self._interpolate(ell, m, n, s)
 
         omega_interp = self._interpolated_qnm_funcs[ell, m, n, s][0]
-        omega = omega_interp[0](chif) + 1j*omega_interp[1](chif)
+        omega = omega_interp[0](chif) + 1j * omega_interp[1](chif)
 
         # Use symmetry properties to get the mirror mode, if requested
         if sign == -1:
             omega = -np.conjugate(omega)
 
-        return omega/Mf
+        return omega / Mf
 
     def omega_list(self, modes, chif, Mf=1, s=-2):
         """
@@ -282,19 +277,19 @@ class qnm:
                 else:
                     sum_list = []
                     for i in range(0, len(mode), 4):
-                        l, m, n, sign = mode[i:i+4]
+                        l, m, n, sign = mode[i : i + 4]
                         sum_list.append(self.omega(l, m, n, sign, chif, Mf))
                     return_list.append(sum(sum_list))
             return return_list
-        
+
         else:
             return [
-                sum([
-                    self.omega(ell, m, n, sign, chif, Mf, s)
-                    for ell, m, n, sign in [
-                        mode[i:i+4] for i in range(0, len(mode), 4)
+                sum(
+                    [
+                        self.omega(ell, m, n, sign, chif, Mf, s)
+                        for ell, m, n, sign in [mode[i : i + 4] for i in range(0, len(mode), 4)]
                     ]
-                ])
+                )
                 for mode in modes
             ]
 
@@ -370,12 +365,12 @@ class qnm:
             self._interpolate(ellp, mp, nprime, s)
 
         mu_interp = self._interpolated_qnm_funcs[ellp, mp, nprime, s][1][index]
-        mu = mu_interp[0](chif) + 1j*mu_interp[1](chif)
+        mu = mu_interp[0](chif) + 1j * mu_interp[1](chif)
 
         # Use symmetry properties to get the mirror mixing coefficient, if
         # requested
         if sign == -1:
-            mu = (-1)**(ell+ellp)*np.conjugate(mu)
+            mu = (-1) ** (ell + ellp) * np.conjugate(mu)
 
         return mu
 
@@ -409,7 +404,7 @@ class qnm:
 
         for k in indices:
             if len(k) == 4:
-                l, m, lp, mp = k 
+                l, m, lp, mp = k
                 if (l, m) == (lp, mp):
                     mus.append(1.0 + 0.0j)
                 else:
@@ -418,16 +413,18 @@ class qnm:
                 ell, m, ellp, mp, nprime, sign = k
                 mus.append(self.mu(ell, m, ellp, mp, nprime, sign, chif, s))
             elif len(k) == 10 or len(k) == 14:
-                #kwargs = {"s1": -1, "s2": -1}
-                #mus.append(Qmu_D([k], chif, 8)[0]) 
-                #mus.append(Qmu_B([k], chif, 8, **kwargs)[0])
+                # kwargs = {"s1": -1, "s2": -1}
+                # mus.append(Qmu_D([k], chif, 8)[0])
+                # mus.append(Qmu_B([k], chif, 8, **kwargs)[0])
                 if k in self._Cmus_interp.keys():
                     mus.append(self._Cmus_interp[k](chif))
                 else:
                     mus.append(0.0 + 0.0j)
         return mus
 
+
 qnm = qnm()
+
 
 def sYlm(l, m, theta, phi, s=-2, l_max=8):
     """
@@ -501,10 +498,10 @@ def kappa(i, j, d, h, b, f, s1, s2):
 def triple_kappa_numerical(l4, m4, l1, l2, l3, m1, m2, m3, s1, s2, s3, l_max=8):
     """
     Numerically compute a generalized kappa coefficient by direct integration over the sphere.
-    
+
     This computes the integral: ∫ Y_{s1,m1}^{l1} Y_{s2,m2}^{l2} Y_{s3,m3}^{l3} ̅Y_{s1+s2+s3,m4}^{l4} dΩ
     where Y are spin-weighted spherical harmonics and the bar denotes complex conjugate.
-    
+
     Parameters
     ----------
     l4 : int
@@ -531,40 +528,40 @@ def triple_kappa_numerical(l4, m4, l1, l2, l3, m1, m2, m3, s1, s2, s3, l_max=8):
         The spin weight of the third spherical harmonic.
     l_max : int, optional
         The maximum l-mode for spherical harmonic computation. Default is 8.
-        
+
     Returns
     -------
     kappa : complex
         The numerically computed kappa coefficient.
     """
 
-    #if m1 + m2 + m3 != m4:
+    # if m1 + m2 + m3 != m4:
     #    return 0.0 + 0.0j
-    
+
     def integrand_real(theta, phi):
         # Real part of the integrand
         return np.real(
-            np.sin(theta) *  # Jacobian factor for spherical coordinates
-            sYlm(l1, m1, theta, phi, s=s1, l_max=l_max) * 
-            sYlm(l2, m2, theta, phi, s=s2, l_max=l_max) * 
-            sYlm(l3, m3, theta, phi, s=s3, l_max=l_max) *
-            np.conj(sYlm(l4, m4, theta, phi, s=s1+s2+s3, l_max=l_max))
+            np.sin(theta)  # Jacobian factor for spherical coordinates
+            * sYlm(l1, m1, theta, phi, s=s1, l_max=l_max)
+            * sYlm(l2, m2, theta, phi, s=s2, l_max=l_max)
+            * sYlm(l3, m3, theta, phi, s=s3, l_max=l_max)
+            * np.conj(sYlm(l4, m4, theta, phi, s=s1 + s2 + s3, l_max=l_max))
         )
-    
+
     def integrand_imag(theta, phi):
         # Imaginary part of the integrand
         return np.imag(
-            np.sin(theta) *  # Jacobian factor for spherical coordinates
-            sYlm(l1, m1, theta, phi, s=s1, l_max=l_max) * 
-            sYlm(l2, m2, theta, phi, s=s2, l_max=l_max) * 
-            sYlm(l3, m3, theta, phi, s=s3, l_max=l_max) *
-            np.conj(sYlm(l4, m4, theta, phi, s=s1+s2+s3, l_max=l_max))
+            np.sin(theta)  # Jacobian factor for spherical coordinates
+            * sYlm(l1, m1, theta, phi, s=s1, l_max=l_max)
+            * sYlm(l2, m2, theta, phi, s=s2, l_max=l_max)
+            * sYlm(l3, m3, theta, phi, s=s3, l_max=l_max)
+            * np.conj(sYlm(l4, m4, theta, phi, s=s1 + s2 + s3, l_max=l_max))
         )
-    
+
     # Integrate real and imaginary parts separately
-    real_part = dbl_integrate(integrand_real, 0, 2*np.pi, 0, np.pi)[0]
-    imag_part = dbl_integrate(integrand_imag, 0, 2*np.pi, 0, np.pi)[0]
-    
+    real_part = dbl_integrate(integrand_real, 0, 2 * np.pi, 0, np.pi)[0]
+    imag_part = dbl_integrate(integrand_imag, 0, 2 * np.pi, 0, np.pi)[0]
+
     return real_part + 1j * imag_part
 
 
@@ -587,7 +584,7 @@ def Qmu_B(indices, chif, l_max, **kwargs):
     Returns
     -------
     Qmu : array_like
-        The quadratic mode mixing coefficients. 
+        The quadratic mode mixing coefficients.
 
     """
 
@@ -625,7 +622,7 @@ def Qmu_D(indices, chif, l_max, **kwargs):
     Returns
     -------
     Qmu : array_like
-        The quadratic mode mixing coefficients. 
+        The quadratic mode mixing coefficients.
 
 
     """
@@ -662,7 +659,7 @@ def Cmu_D(indices, chif, l_max, **kwargs):
     Returns
     -------
     Qmu : array_like
-        The quadratic mode mixing coefficients. 
+        The quadratic mode mixing coefficients.
 
     """
 
@@ -681,112 +678,111 @@ def Cmu_D(indices, chif, l_max, **kwargs):
     ]
 
 
-def multimode_ringdown_fit(times, data_dict, modes, Mf, chif, t0, 
-                           t0_method='geq', T=100, spherical_modes=None):
+def multimode_ringdown_fit(times, data_dict, modes, Mf, chif, t0, t0_method="geq", T=100, spherical_modes=None):
 
     # Use the requested spherical modes
     if spherical_modes is None:
         spherical_modes = list(data_dict.keys())
-    
+
     # Mask the data with the requested method
-    if t0_method == 'geq':
-        
-        data_mask = (times>=t0 - 1e-9) & (times<t0+T - 1e-9)
+    if t0_method == "geq":
+
+        data_mask = (times >= t0 - 1e-9) & (times < t0 + T - 1e-9)
 
         times = times[data_mask]
-        data = np.concatenate(
-            [data_dict[lm][data_mask] for lm in spherical_modes])
+        data = np.concatenate([data_dict[lm][data_mask] for lm in spherical_modes])
         data_dict_mask = {lm: data_dict[lm][data_mask] for lm in spherical_modes}
-        
-    elif t0_method == 'closest':
-        
-        start_index = np.argmin((times-t0)**2)
-        end_index = np.argmin((times-t0-T)**2)
-        
+
+    elif t0_method == "closest":
+
+        start_index = np.argmin((times - t0) ** 2)
+        end_index = np.argmin((times - t0 - T) ** 2)
+
         times = times[start_index:end_index]
-        data = np.concatenate(
-            [data_dict[lm][start_index:end_index] for lm in spherical_modes])
-        data_dict_mask = {
-            lm: data_dict[lm][start_index:end_index] for lm in spherical_modes}
-        
+        data = np.concatenate([data_dict[lm][start_index:end_index] for lm in spherical_modes])
+        data_dict_mask = {lm: data_dict[lm][start_index:end_index] for lm in spherical_modes}
+
     else:
-        print("""Requested t0_method is not valid. Please choose between
-              'geq' and 'closest'.""")
-    
+        print(
+            """Requested t0_method is not valid. Please choose between
+              'geq' and 'closest'."""
+        )
+
     data_dict = data_dict_mask
-    
+
     # Frequencies
     # -----------
-    
+
     frequencies = np.array(qnm.omega_list(modes, chif, Mf))
-    
-    # Construct the coefficient matrix for use with NumPy's lstsq function. 
-    
+
+    # Construct the coefficient matrix for use with NumPy's lstsq function.
+
     # Mixing coefficients
     # -------------------
-    
+
     # A list of lists for the mixing coefficient indices. The first list is
     # associated with the first lm mode. The second list is associated with
     # the second lm mode, and so on.
-    # e.g. [ [(2,2,2',2',0'), (2,2,3',2',0')], 
+    # e.g. [ [(2,2,2',2',0'), (2,2,3',2',0')],
     #        [(3,2,2',2',0'), (3,2,3',2',0')] ]
-    indices_lists = [
-        [lm_mode+mode for mode in modes] for lm_mode in spherical_modes]
-    
+    indices_lists = [[lm_mode + mode for mode in modes] for lm_mode in spherical_modes]
+
     # Convert each tuple of indices in indices_lists to a mu value
     mu_lists = [qnm.mu_list(indices, chif) for indices in indices_lists]
-        
+
     # Construct coefficient matrix and solve
     # --------------------------------------
-    
+
     # Construct the coefficient matrix
-    a = np.concatenate([np.array([
-        mu_lists[i][j]*np.exp(-1j*frequencies[j]*(times-t0)) 
-        for j in range(len(frequencies))]).T 
-        for i in range(len(spherical_modes))])
+    a = np.concatenate(
+        [
+            np.array([mu_lists[i][j] * np.exp(-1j * frequencies[j] * (times - t0)) for j in range(len(frequencies))]).T
+            for i in range(len(spherical_modes))
+        ]
+    )
 
     # Solve for the complex amplitudes, C. Also returns the sum of
     # residuals, the rank of a, and singular values of a.
     C, res, rank, s = np.linalg.lstsq(a, data, rcond=None)
-    
+
     # Evaluate the model. This needs to be split up into the separate
     # spherical harmonic modes.
-    model = np.einsum('ij,j->i', a, C)
-    
+    model = np.einsum("ij,j->i", a, C)
+
     # Split up the result into the separate spherical harmonic modes, and
-    # store to a dictionary. We also store the "weighted" complex amplitudes 
+    # store to a dictionary. We also store the "weighted" complex amplitudes
     # to a dictionary.
     model_dict = {}
     weighted_C = {}
-    
+
     for i, lm in enumerate(spherical_modes):
-        model_dict[lm] = model[i*len(times):(i+1)*len(times)]
-        weighted_C[lm] = np.array(mu_lists[i])*C
+        model_dict[lm] = model[i * len(times) : (i + 1) * len(times)]
+        weighted_C[lm] = np.array(mu_lists[i]) * C
 
     # Convert model_dict and data_dict into arrays of shape (len(spherical_modes), len(times))
     model_array = np.array([model_dict[lm] for lm in spherical_modes])
     data_array = np.array([data_dict[lm] for lm in spherical_modes])
-    
+
     # Calculate the (sky-averaged) mismatch for the fit
     mm = mismatch(model_array, data_array)
-    
+
     # Create a list of mode labels (can be used for plotting)
     labels = [str(mode) for mode in modes]
-    
+
     # Store all useful information to a output dictionary
     best_fit = {
-        'residual': res,
-        'mismatch': mm,
-        'C': C,
-        'weighted_C': weighted_C,
-        'data': data_dict,
-        'model': model_dict,
-        'model_times': times,
-        't0': t0,
-        'modes': modes,
-        'mode_labels': labels,
-        'frequencies': frequencies
-        }
-    
+        "residual": res,
+        "mismatch": mm,
+        "C": C,
+        "weighted_C": weighted_C,
+        "data": data_dict,
+        "model": model_dict,
+        "model_times": times,
+        "t0": t0,
+        "modes": modes,
+        "mode_labels": labels,
+        "frequencies": frequencies,
+    }
+
     # Return the output dictionary
     return best_fit

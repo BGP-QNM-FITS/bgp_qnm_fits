@@ -6,16 +6,16 @@ import qnmfits as qnmfits
 filepath = "/data/rvnd2-2/CCE_data/superrest_data"
 
 
-def sim_object(times, data, metadata, zero_time=(2,2)):
+def sim_object(times, data, metadata, zero_time=(2, 2)):
 
     if type(zero_time) is tuple:
-        time_shift = times[jnp.argmax(jnp.abs(data[zero_time]))] 
-    elif type(zero_time) is float or int: 
-        time_shift = zero_time 
+        time_shift = times[jnp.argmax(jnp.abs(data[zero_time]))]
+    elif type(zero_time) is float or int:
+        time_shift = zero_time
     else:
         raise ValueError("zero time choice not supported")
 
-    times -= time_shift 
+    times -= time_shift
 
     return {
         "times": times,
@@ -24,7 +24,7 @@ def sim_object(times, data, metadata, zero_time=(2,2)):
         "Mf": metadata["M_f"],
         "chi_f": metadata["chi_f"],
         "chif_mag": jnp.linalg.norm(jnp.array(metadata["chi_f"])),
-    } 
+    }
 
 
 def get_strain_zero_time(ID, lev, radius, zero_time):
@@ -43,13 +43,12 @@ def get_strain_zero_time(ID, lev, radius, zero_time):
             "remnant_dimensionless_spin": [1, 0, 0],
         },
         zero_time=zero_time,
-        )
-    
+    )
+
     return sim.zero_time
 
 
-
-def SXS_CCE(ID, type="strain", lev="Lev5", radius="R2", zero_time=(2,2)):
+def SXS_CCE(ID, type="strain", lev="Lev5", radius="R2", zero_time=(2, 2)):
 
     if ID == "0305":
 
@@ -79,15 +78,21 @@ def SXS_CCE(ID, type="strain", lev="Lev5", radius="R2", zero_time=(2,2)):
         )
 
     else:
-        
+
         if type == "strain":
-            data_filepath = f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_h.pickle"
-            strain_zero_time = zero_time 
+            data_filepath = (
+                f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_h.pickle"
+            )
+            strain_zero_time = zero_time
         elif type == "news":
-            data_filepath = f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_news.pickle"
+            data_filepath = (
+                f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_news.pickle"
+            )
             strain_zero_time = get_strain_zero_time(ID, lev, radius, zero_time)
         elif type == "psi4":
-            data_filepath = f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_psi4.pickle"
+            data_filepath = (
+                f"{filepath}/SXS:BBH_ExtCCE_superrest:{ID}/SXS:BBH_ExtCCE_superrest:{ID}_{lev}_{radius}_psi4.pickle"
+            )
             strain_zero_time = get_strain_zero_time(ID, lev, radius, zero_time)
 
         with open(

@@ -94,7 +94,7 @@ def get_residual_data(big=False, data_type="strain"):
                 return pickle.load(f)
 
 
-def get_param_dict(data_type = "strain"):
+def get_param_dict(data_type="strain"):
     if data_type == "strain":
         with open(PARAM_DICT_PATH_STRAIN, "rb") as f:
             return pickle.load(f)
@@ -104,7 +104,6 @@ def get_param_dict(data_type = "strain"):
     elif data_type == "psi4":
         with open(PARAM_DICT_PATH_PSI4, "rb") as f:
             return pickle.load(f)
-
 
 
 __all__ = ["get_param_data", "get_residual_data", "get_param_dict", "SXS_CCE"]

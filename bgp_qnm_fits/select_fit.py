@@ -14,8 +14,8 @@ jax.config.update("jax_enable_x64", True)
 
 class BGP_select(Base_BGP_fit):
     """
-    A class for selecting QNMs by performing an optimised version of the 
-    Bayes GP fit code implemented fully in main_fit. 
+    A class for selecting QNMs by performing an optimised version of the
+    Bayes GP fit code implemented fully in main_fit.
     """
 
     def __init__(
@@ -23,7 +23,7 @@ class BGP_select(Base_BGP_fit):
         *args,
         t0,
         candidate_modes,
-        log_threshold, 
+        log_threshold,
         candidate_type="sequential",
         n_max=6,
         num_draws=1e3,
@@ -49,7 +49,7 @@ class BGP_select(Base_BGP_fit):
         self.candidate_modes = candidate_modes
         self.n_max = n_max
         self.num_draws = int(num_draws)
-        self.candidate_type = candidate_type 
+        self.candidate_type = candidate_type
         self.get_fit_at_t0(t0)
 
     def _get_ls_amplitudes_candidates(self, t0, Mf, chif, modes, t0_method="closest"):
@@ -91,11 +91,13 @@ class BGP_select(Base_BGP_fit):
 
         return C_0, ref_params
 
-    def determine_next_modes(self, current_modes, candidate_modes, n_limit_prograde, n_limit_retrograde, n_max, type="sequential"):
+    def determine_next_modes(
+        self, current_modes, candidate_modes, n_limit_prograde, n_limit_retrograde, n_max, type="sequential"
+    ):
 
         possible_new_modes = []
 
-        if type=="sequential":
+        if type == "sequential":
 
             for s in self.spherical_modes:
                 if n_limit_prograde[s] + 1 <= n_max:
@@ -105,12 +107,12 @@ class BGP_select(Base_BGP_fit):
                     if (s[0], s[1], n_limit_retrograde[s] + 1, -1) in candidate_modes:
                         possible_new_modes.append((s[0], s[1], n_limit_retrograde[s] + 1, -1))
 
-        elif type=="all":
+        elif type == "all":
             for candidate_mode in candidate_modes:
                 if candidate_mode not in current_modes:
-                        possible_new_modes.append(candidate_mode)
+                    possible_new_modes.append(candidate_mode)
 
-        elif type=="prograde_sequential":
+        elif type == "prograde_sequential":
             for s in self.spherical_modes:
                 if n_limit_prograde[s] + 1 <= n_max:
                     if (s[0], s[1], n_limit_prograde[s] + 1, 1 if s[1] > 0 else -1) in candidate_modes:
@@ -124,21 +126,23 @@ class BGP_select(Base_BGP_fit):
         # QQNMs and CQNMs
 
         for candidate_mode in candidate_modes:
-            if len(candidate_mode) != 4: 
-                constituent_modes = [candidate_mode[i:i+4] for i in range(0, len(candidate_mode), 4)]
-                if not all(mode in candidate_modes for mode in constituent_modes) and candidate_mode not in current_modes: 
+            if len(candidate_mode) != 4:
+                constituent_modes = [candidate_mode[i : i + 4] for i in range(0, len(candidate_mode), 4)]
+                if (
+                    not all(mode in candidate_modes for mode in constituent_modes)
+                    and candidate_mode not in current_modes
+                ):
                     possible_new_modes.append(candidate_mode)
                 elif all(mode in current_modes for mode in constituent_modes) and candidate_mode not in current_modes:
                     possible_new_modes.append(candidate_mode)
 
-        # CONSTANTS 
+        # CONSTANTS
 
         for candidate_mode in candidate_modes:
             if len(candidate_mode) == 2 and candidate_mode not in current_modes:
                 possible_new_modes.append(candidate_mode)
 
         return possible_new_modes
-    
 
     def _get_samples(self, mean_vector, covariance_matrix, num_draws):
         key, subkey = jax.random.split(self.key)
@@ -148,13 +152,11 @@ class BGP_select(Base_BGP_fit):
             covariance_matrix,
             shape=(num_draws),
         )
-                
+
         return samples, key
-    
 
     def get_model_linear(self, constant_term, mean_vector, ref_params, model_terms):
         return constant_term + np.einsum("p,stp->st", mean_vector - ref_params, model_terms)
-    
 
     def get_expected_chi_squared(self, noise_covariance, num_draws=1e3):
         dist_samples = np.zeros((num_draws))
@@ -164,8 +166,10 @@ class BGP_select(Base_BGP_fit):
             dist_samples += 2 * np.sum(eigvals * normal_samples**2, axis=1)
 
         return dist_samples
- 
-    def get_model_chi_squared(self, masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix, num_draws=1e3):
+
+    def get_model_chi_squared(
+        self, masked_data_array, constant_term, ref_params, model_terms, mean_vector, covariance_matrix, num_draws=1e3
+    ):
         samples, key = self._get_samples(mean_vector, covariance_matrix, num_draws)
         r_squareds = np.zeros(num_draws)
         for j in range(num_draws):
@@ -175,14 +179,19 @@ class BGP_select(Base_BGP_fit):
             r_squared = np.einsum("st, st -> ", np.conj(residual), residual).real
             r_squareds[j] = r_squared
         return r_squareds
-    
 
-    def get_fit_arrays(self, t0, model_times, masked_data_array, Mf_ref, chif_ref, modes, noise_covariance_lower_triangular):
+    def get_fit_arrays(
+        self, t0, model_times, masked_data_array, Mf_ref, chif_ref, modes, noise_covariance_lower_triangular
+    ):
         full_ls_amplitudes, full_ref_params = self._get_ls_amplitudes_candidates(t0, Mf_ref, chif_ref, modes)
         full_frequencies = jnp.array([self._get_frequency(mode, chif_ref, Mf_ref) for mode in modes])
         full_frequency_derivatives = jnp.array([self._get_domega_dchif(mode, chif_ref, Mf_ref) for mode in modes])
-        full_mixing_coefficients = jnp.array([self._get_mixing(mode, sph_mode, chif_ref) for sph_mode in self.spherical_modes for mode in modes]).reshape(len(self.spherical_modes), len(modes))
-        full_mixing_derivatives = jnp.array([self._get_dmu_dchif(mode, sph_mode, chif_ref) for sph_mode in self.spherical_modes for mode in modes]).reshape(len(self.spherical_modes), len(modes))
+        full_mixing_coefficients = jnp.array(
+            [self._get_mixing(mode, sph_mode, chif_ref) for sph_mode in self.spherical_modes for mode in modes]
+        ).reshape(len(self.spherical_modes), len(modes))
+        full_mixing_derivatives = jnp.array(
+            [self._get_dmu_dchif(mode, sph_mode, chif_ref) for sph_mode in self.spherical_modes for mode in modes]
+        ).reshape(len(self.spherical_modes), len(modes))
         full_exponential_terms = self._get_exponential_terms(model_times, full_frequencies)
 
         model_terms = self.get_model_terms(
@@ -211,7 +220,6 @@ class BGP_select(Base_BGP_fit):
 
         return full_ref_params, model_terms, constant_term, fisher_matrix, b_vector, covariance_matrix, mean_vector
 
-
     def get_fit_at_t0(self, t0):
         """
         Perform the fit at a specific time t0.
@@ -231,29 +239,33 @@ class BGP_select(Base_BGP_fit):
         noise_covariance_lower_triangular = cholesky(noise_covariance_matrix, lower=True)
 
         if len(self.modes) != 0:
-            # TODO this is for a very specific trial case 
+            # TODO this is for a very specific trial case
             n_limit_prograde = {s: 0 for s in self.spherical_modes}
             n_limit_retrograde = {s: 0 for s in self.spherical_modes}
         else:
             n_limit_prograde = {s: -1 for s in self.spherical_modes}
             n_limit_retrograde = {s: -1 for s in self.spherical_modes}
 
-        modes = self.modes.copy() 
+        modes = self.modes.copy()
 
-        mode_dot_products = [] 
+        mode_dot_products = []
 
         for candidate_mode in self.candidate_modes:
-            if len(candidate_mode) != 4: 
-                constituent_modes = [candidate_mode[i:i+4] for i in range(0, len(candidate_mode), 4)]
-                if not all(mode in self.candidate_modes for mode in constituent_modes): 
-                    print(f"Warning: candidate mode {candidate_mode} has constituents not in candidate modes list. Nonlinear mode will be included as a candidate at all times.")
+            if len(candidate_mode) != 4:
+                constituent_modes = [candidate_mode[i : i + 4] for i in range(0, len(candidate_mode), 4)]
+                if not all(mode in self.candidate_modes for mode in constituent_modes):
+                    print(
+                        f"Warning: candidate mode {candidate_mode} has constituents not in candidate modes list. Nonlinear mode will be included as a candidate at all times."
+                    )
 
         while True:
 
-            log_significance = [] 
+            log_significance = []
             dot_products = []
 
-            candidate_modes_considered = self.determine_next_modes(modes, self.candidate_modes, n_limit_prograde, n_limit_retrograde, self.n_max, type=self.candidate_type)
+            candidate_modes_considered = self.determine_next_modes(
+                modes, self.candidate_modes, n_limit_prograde, n_limit_retrograde, self.n_max, type=self.candidate_type
+            )
 
             if len(candidate_modes_considered) == 0:
                 print("Stopping: no more modes to add.")
@@ -267,17 +279,25 @@ class BGP_select(Base_BGP_fit):
 
                 try_modes = modes + [candidate_mode]
 
-                full_ref_params, model_terms, constant_term, fisher_matrix, b_vector, \
-                covariance_matrix, mean_vector = self.get_fit_arrays(
-                    t0, model_times, masked_data_array, Mf_ref, chif_ref, 
-                    try_modes, noise_covariance_lower_triangular
+                full_ref_params, model_terms, constant_term, fisher_matrix, b_vector, covariance_matrix, mean_vector = (
+                    self.get_fit_arrays(
+                        t0,
+                        model_times,
+                        masked_data_array,
+                        Mf_ref,
+                        chif_ref,
+                        try_modes,
+                        noise_covariance_lower_triangular,
+                    )
                 )
-                dot_product, log_s = get_log_significance_mode(candidate_mode, 
-                                                                    try_modes, 
-                                                                    mean_vector, 
-                                                                    fisher_matrix, 
-                                                                    include_chif=self.include_chif, 
-                                                                    include_Mf=self.include_Mf)
+                dot_product, log_s = get_log_significance_mode(
+                    candidate_mode,
+                    try_modes,
+                    mean_vector,
+                    fisher_matrix,
+                    include_chif=self.include_chif,
+                    include_Mf=self.include_Mf,
+                )
                 log_significance.append(log_s)
                 dot_products.append(dot_product)
 
@@ -286,7 +306,9 @@ class BGP_select(Base_BGP_fit):
 
             if max_log_sig < self.log_threshold:
                 print("Stopping: no more significant modes")
-                print(f"Next mode is {candidate_modes_considered[np.argmax(log_significance)]} with log significance {max_log_sig}")
+                print(
+                    f"Next mode is {candidate_modes_considered[np.argmax(log_significance)]} with log significance {max_log_sig}"
+                )
                 print("Final mode content", modes)
                 self.modes_length -= 1
                 self.params_length -= 2
@@ -297,14 +319,14 @@ class BGP_select(Base_BGP_fit):
             modes.append(mode_to_add)
             print(f"Adding mode {mode_to_add} with significance {np.exp(max_log_sig)}.")
 
-            if len(mode_to_add)==4 and np.sign(mode_to_add[3]) == np.sign(mode_to_add[1]):
+            if len(mode_to_add) == 4 and np.sign(mode_to_add[3]) == np.sign(mode_to_add[1]):
                 n_limit_prograde[(mode_to_add[0], mode_to_add[1])] += 1
-            elif len(mode_to_add)==4 and np.sign(mode_to_add[3]) == np.sign(-mode_to_add[1]):
+            elif len(mode_to_add) == 4 and np.sign(mode_to_add[3]) == np.sign(-mode_to_add[1]):
                 n_limit_retrograde[(mode_to_add[0], mode_to_add[1])] += 1
 
         ##full_ref_params, model_terms, constant_term, fisher_matrix, b_vector, \
         ##covariance_matrix, mean_vector = self.get_fit_arrays(
-        ##    t0, model_times, masked_data_array, Mf_ref, chif_ref, 
+        ##    t0, model_times, masked_data_array, Mf_ref, chif_ref,
         ##    modes, noise_covariance_lower_triangular
         ##)
         ##expected_chi_squared = self.get_expected_chi_squared(noise_covariance_matrix, num_draws=self.num_draws)
@@ -312,8 +334,8 @@ class BGP_select(Base_BGP_fit):
         ##model_chi_squared = self.get_model_chi_squared(masked_data_array, constant_term, full_ref_params, model_terms, mean_vector, covariance_matrix, num_draws=self.num_draws)
         ##p_values = np.array([np.sum(expected_chi_squared < chi_sq) / self.num_draws for chi_sq in model_chi_squared])
 
-        #model_chi_squared_mean, model_chi_squared_lower, model_chi_squared_upper = np.mean(model_chi_squared), np.percentile(model_chi_squared, 25), np.percentile(model_chi_squared, 75)
-        #p_value_mean = np.sum(expected_chi_squared < model_chi_squared_mean) / self.num_draws
+        # model_chi_squared_mean, model_chi_squared_lower, model_chi_squared_upper = np.mean(model_chi_squared), np.percentile(model_chi_squared, 25), np.percentile(model_chi_squared, 75)
+        # p_value_mean = np.sum(expected_chi_squared < model_chi_squared_mean) / self.num_draws
 
         ##sample_model = self.get_model_linear(constant_term, mean_vector, full_ref_params, model_terms)
         ##residual = masked_data_array - sample_model

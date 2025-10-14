@@ -1,4 +1,4 @@
-#import jax
+# import jax
 from .main_fit import BGP_fit
 from .select_fit import BGP_select
 from .PLT_fit import PLT_BGP_fit
@@ -10,7 +10,7 @@ from .gp_kernels import (
     kernel_GP_test,
     kernel_GPC,
     compute_kernel_matrix,
-    compute_kernel_matrix_test
+    compute_kernel_matrix_test,
 )
 from .qnm_funcs import get_significance, get_log_significance_mode, get_significance_list
 
@@ -36,7 +36,7 @@ __all__ = [
     "BGP_fit",
     "BGP_select",
     "PLT_BGP_fit",
-    "BGP_fit_lite", 
+    "BGP_fit_lite",
     "kernel_test",
     "kernel_WN",
     "kernel_GP",
@@ -64,6 +64,6 @@ __all__ = [
     "SXS_CCE",
 ]
 
-#jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_enable_x64", True)
 
 __version__ = "0.1.0"

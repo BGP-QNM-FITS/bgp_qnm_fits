@@ -1,10 +1,10 @@
 import numpy as np
 import scipy
 import bgp_qnm_fits.qnmfits_funcs as qnmfits
-import jax 
-import jax.numpy as jnp 
+import jax
+import jax.numpy as jnp
 
-from jax.scipy.linalg import solve 
+from jax.scipy.linalg import solve
 from jax.numpy.linalg import slogdet
 from bgp_qnm_fits.utils import get_time_shift, sim_interpolator_data
 from bgp_qnm_fits.gp_kernels import compute_kernel_matrix
@@ -67,11 +67,11 @@ def get_params(
     Mf,
     chif_mag,
     smoothness,
-    time_shift, 
-    data_type, 
+    time_shift,
+    data_type,
     spherical_modes=None,
-    max_mask = 0, 
-    min_mask = 250,
+    max_mask=0,
+    min_mask=250,
 ):
     """
     This function computes the initial parameters for the Gaussian Process kernel based on the residuals.
@@ -90,16 +90,16 @@ def get_params(
     if spherical_modes is None:
         spherical_modes = residual_dict.keys()
 
-    # Define period over which to average late-time residual 
+    # Define period over which to average late-time residual
 
-    max_mask = (residual_big_times > max_mask) 
-    min_mask = (residual_big_times > min_mask)
+    max_mask = residual_big_times > max_mask
+    min_mask = residual_big_times > min_mask
 
-    #if data_type == "strain":
+    # if data_type == "strain":
     #    regularization_factor = 1e2
-    #elif data_type == "news":
+    # elif data_type == "news":
     #    regularization_factor = 1e2
-    #elif data_type == "psi4":
+    # elif data_type == "psi4":
     #    regularization_factor = 1e4
 
     regularization_threshold = 0
@@ -108,7 +108,7 @@ def get_params(
         (ell, m): {
             "sigma_max": np.max(np.abs(residual_dict[(ell, m)][max_mask])),
             "A_max": np.max(np.abs(residual_dict[(ell, m)][max_mask])),
-            #"A_min_reg": np.mean(np.abs(residual_dict[(ell, m)][min_mask])) * regularization_factor,
+            # "A_min_reg": np.mean(np.abs(residual_dict[(ell, m)][min_mask])) * regularization_factor,
             "A_min_reg": np.clip(np.mean(np.abs(residual_dict[(ell, m)][min_mask])), regularization_threshold, None),
             "t_s": time_shift,
             "smoothness": smoothness,
@@ -239,9 +239,11 @@ def get_new_params(param_dict, hyperparam_list, rule_dict):
 def prior_logpdf(s, mu=np.log(0.003), sigma=1.0):
     return -0.5 * ((np.log(s) - mu) / sigma) ** 2 - np.log(s * sigma * np.sqrt(2 * np.pi))
 
+
 def logprior_a_logit_normal(a, mu=0.0, sigma=0.5):
     logit_a = np.log(a) - np.log1p(-a)
-    return -0.5 * ((logit_a - mu)/sigma)**2 - np.log(a) - np.log1p(-a)
+    return -0.5 * ((logit_a - mu) / sigma) ** 2 - np.log(a) - np.log1p(-a)
+
 
 def get_total_log_likelihood(
     hyperparam_list,
@@ -294,12 +296,12 @@ def get_total_log_likelihood(
             log_likelihood_real = GP_log_likelihood(K, f.real)
             log_likelihood_imag = GP_log_likelihood(K, f.imag)
             if jnp.isnan(log_likelihood_real) or jnp.isnan(log_likelihood_imag):
-                breakpoint() 
+                breakpoint()
             total_log_likelihood += log_likelihood_real + log_likelihood_imag
             if mode_rule in {"P", "PE"}:
                 total_log_likelihood += log_likelihood_real + log_likelihood_imag
 
-    #if "a" in rule_dict.keys():
+    # if "a" in rule_dict.keys():
     #    a_hyperparam_index = list(rule_dict.keys()).index("a")
     #    current_a_value = hyperparam_list[a_hyperparam_index]
     #    #total_log_likelihood += logprior_a_logit_normal(current_a_value)
