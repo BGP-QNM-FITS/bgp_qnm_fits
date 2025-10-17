@@ -2,7 +2,7 @@
 
 This package implements Bayesian likelihood fits of quasinormal modes (QNMs) to Cauchy-characteristic evolved (CCE) numerical relativity (NR) data, using a Gaussian process model for the NR noise. In principle the functions in this package can be generalised to other NR data. 
 
-This repo accompanies the paper *[Quasinormal modes from numerical relativity with Bayesian inference (Dyer & Moore, 2025)](https://arxiv.org/pdf/2510.11783)*. For further code that uses this package, see [BGP methods](https://github.com/Richardvnd/bgp_methods). 
+This repo accompanies the paper [Quasinormal modes from numerical relativity with Bayesian inference (Dyer & Moore, submitted)](https://arxiv.org/pdf/2510.11783). For further code that uses this package, see [BGP methods](https://github.com/Richardvnd/bgp_methods). 
 
 ## Installation
 
@@ -44,11 +44,13 @@ For example usage see demo.ipynb
 If you use this code in your research, please cite our paper:
 
 ```bibtex
-@article{Dyer_R_QNM_BGP,
-    title={Quasinormal modes from numerical relativity with Bayesian inference},
-    author={Dyer, R. and Moore, C.J.},
-    journal={PRD},
-    year={2025},
-    doi={paper-doi}
+@misc{dyer2025quasinormalmodesnumericalrelativity,
+      title={Quasinormal modes from numerical relativity with Bayesian inference}, 
+      author={Richard Dyer and Christopher J. Moore},
+      year={2025},
+      eprint={2510.11783},
+      archivePrefix={arXiv},
+      primaryClass={gr-qc},
+      url={https://arxiv.org/abs/2510.11783}, 
 }
 ```
